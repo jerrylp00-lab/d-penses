@@ -1,1 +1,210 @@
-<!DOCTYPE html><html><body><h1>SCI Dashboard</h1></body></html>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SCI Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #111; padding: 24px; }
+    h1 { font-size: 1.4rem; font-weight: 700; margin-bottom: 4px; }
+    h2 { font-size: 1rem; font-weight: 600; margin-bottom: 12px; color: #444; text-transform: uppercase; letter-spacing: .05em; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+    .meta   { font-size: .85rem; color: #666; }
+    .refresh-btn { padding: 6px 14px; background: #111; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: .85rem; }
+    .refresh-btn:hover { background: #333; }
+    .grid   { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 32px; }
+    .card   { background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+    .badge  { display: inline-block; padding: 3px 10px; border-radius: 99px; font-size: .75rem; font-weight: 600; }
+    .badge-ok  { background: #dcfce7; color: #166534; }
+    .badge-late { background: #fee2e2; color: #991b1b; }
+    .badge-warn { background: #fef9c3; color: #854d0e; }
+    .amount { font-size: 1.3rem; font-weight: 700; }
+    .sub    { font-size: .82rem; color: #666; margin-top: 4px; }
+    .section { margin-bottom: 32px; }
+    table   { width: 100%; border-collapse: collapse; font-size: .88rem; }
+    th      { text-align: left; padding: 8px 12px; border-bottom: 2px solid #e5e7eb; color: #444; font-weight: 600; }
+    td      { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
+    tr:last-child td { border-bottom: none; }
+    .pending-row { opacity: .45; font-style: italic; }
+    .pending-row:hover { opacity: .7; }
+    .cat-label { font-size: .78rem; background: #f3f4f6; border-radius: 4px; padding: 2px 6px; }
+    .btn-sm { padding: 3px 10px; border-radius: 5px; border: 1px solid #d1d5db; cursor: pointer; font-size: .8rem; }
+    .btn-confirm { background: #dcfce7; color: #166534; }
+    .btn-reject  { background: #fee2e2; color: #991b1b; }
+    select.cat-select { font-size: .8rem; padding: 2px 6px; border-radius: 5px; border: 1px solid #d1d5db; }
+    .cash-amount { font-size: 2rem; font-weight: 800; }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div>
+    <h1>SCI Dashboard</h1>
+    <p class="meta">Dernière mise à jour : {{ last_updated }}</p>
+  </div>
+  <button class="refresh-btn" onclick="location.href='/?refresh=true'">⟳ Rafraîchir</button>
+</div>
+
+<!-- Bloc 1: Cash -->
+<div class="section">
+  <h2>💰 Cash disponible</h2>
+  <div class="card" style="display:inline-block; min-width:200px;">
+    <div class="cash-amount">{{ "%.2f"|format(cash or 0) }} €</div>
+    <div class="sub">Solde compte SCI Crédit Agricole</div>
+  </div>
+</div>
+
+<!-- Bloc 2: Loyers -->
+<div class="section">
+  <h2>🏠 Loyers</h2>
+  <div class="grid">
+    {% for card in loyer_cards %}
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+        <div>
+          <div style="font-weight:700;font-size:1.05rem;">{{ card.appart }}</div>
+          <div class="sub">{{ card.tenant }}</div>
+        </div>
+        {% if card.paid_this_month %}
+        <span class="badge badge-ok">À jour</span>
+        {% else %}
+        <span class="badge badge-late">En retard</span>
+        {% endif %}
+      </div>
+      <div class="amount">{{ card.montant }} €<span style="font-size:.9rem;font-weight:400;color:#666;">/mois</span></div>
+      <div class="sub" style="margin-top:8px;">Depuis {{ card.depuis }} · Total payé : <strong>{{ "%.0f"|format(card.total_paid) }} €</strong></div>
+      <div class="sub">Caution : {{ card.caution }} €</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Bloc 3: Récurrentes + Prêts -->
+<div class="section">
+  <h2>🔁 Dépenses récurrentes</h2>
+  {% if recurrents %}
+  <div class="card" style="margin-bottom:16px;">
+    <table>
+      <thead><tr><th>Date</th><th>Libellé</th><th>Montant</th></tr></thead>
+      <tbody>
+        {% for t in recurrents %}
+        <tr>
+          <td>{{ t.date }}</td>
+          <td>{{ t.label }}</td>
+          <td style="color:#dc2626;">{{ "%.2f"|format(t.amount) }} €</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="sub">Aucune dépense récurrente confirmée.</p>
+  {% endif %}
+
+  {% if prets %}
+  <h2 style="margin-top:16px;">🏦 Prêts bancaires</h2>
+  <div class="card">
+    <table>
+      <thead><tr><th>Date</th><th>Libellé</th><th>Montant</th></tr></thead>
+      <tbody>
+        {% for t in prets %}
+        <tr>
+          <td>{{ t.date }}</td>
+          <td>{{ t.label }}</td>
+          <td style="color:#dc2626;">{{ "%.2f"|format(t.amount) }} €</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Bloc 4: Travaux -->
+<div class="section">
+  <h2>🔨 Travaux</h2>
+  {% if travaux %}
+  <div class="card">
+    <div style="font-size:1.1rem;font-weight:700;margin-bottom:12px;">Total : {{ "%.2f"|format(travaux_total) }} €</div>
+    <table>
+      <thead><tr><th>Date</th><th>Libellé</th><th>Montant</th></tr></thead>
+      <tbody>
+        {% for t in travaux %}
+        <tr>
+          <td>{{ t.date }}</td>
+          <td>{{ t.label }}</td>
+          <td style="color:#dc2626;">{{ "%.2f"|format(t.amount) }} €</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="sub">Aucun travaux confirmés.</p>
+  {% endif %}
+</div>
+
+<!-- Bloc 5: À valider -->
+{% if pending %}
+<div class="section">
+  <h2>⚠️ À valider ({{ pending|length }})</h2>
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th><th>Libellé</th><th>Montant</th>
+          <th>Catégorie proposée</th><th>Confiance</th><th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in pending %}
+        <tr class="pending-row" id="row-{{ t.transaction_id }}">
+          <td>{{ t.date }}</td>
+          <td>{{ t.label }}</td>
+          <td>{{ "%.2f"|format(t.amount) }} €</td>
+          <td>
+            <select class="cat-select" id="cat-{{ t.transaction_id }}">
+              {% for cat in ["loyer","pret","recurring","travaux","divers"] %}
+              <option value="{{ cat }}" {% if cat == t.category %}selected{% endif %}>{{ cat }}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td>
+            {% if t.confidence < confidence_threshold %}
+            <span class="badge badge-warn">{{ "%.0f"|format(t.confidence * 100) }}%</span>
+            {% else %}
+            {{ "%.0f"|format(t.confidence * 100) }}%
+            {% endif %}
+          </td>
+          <td style="display:flex;gap:6px;">
+            <button class="btn-sm btn-confirm" onclick="validate('{{ t.transaction_id }}','confirmed')">✓</button>
+            <button class="btn-sm btn-reject"  onclick="validate('{{ t.transaction_id }}','rejected')">✗</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<script>
+async function validate(txId, status) {
+  const select   = document.getElementById('cat-' + txId);
+  const category = select ? select.value : 'divers';
+  const resp = await fetch('/validate/' + txId, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({category, status}),
+  });
+  if (resp.ok) {
+    const row = document.getElementById('row-' + txId);
+    if (row) row.remove();
+  }
+}
+</script>
+
+</body>
+</html>
