@@ -1,5 +1,5 @@
 .env
-~/.finary_session.json
+.finary_session.json
 __pycache__/
 *.pyc
 *.pyo
