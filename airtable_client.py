@@ -1,5 +1,5 @@
 # airtable_client.py
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from pyairtable import Api
 import config
@@ -25,7 +25,7 @@ class AirtableClient:
             return datetime(2000, 1, 1)
 
     def set_last_updated(self, dt: Optional[datetime] = None):
-        dt = dt or datetime.utcnow()
+        dt = dt or datetime.now(timezone.utc)
         value = dt.isoformat()
         rows = self._metadata.all(formula="{key}='last_updated'")
         if rows:
@@ -76,8 +76,10 @@ class AirtableClient:
             for r in self._transactions.all(fields=["transaction_id"])
         }
         new = [t for t in transactions if t["transaction_id"] not in existing_ids]
-        for tx in new:
-            self._transactions.create({
+        if not new:
+            return
+        records = [
+            {
                 "transaction_id":  tx["transaction_id"],
                 "date":            tx["date"],
                 "amount":          tx["amount"],
@@ -85,11 +87,15 @@ class AirtableClient:
                 "category":        tx.get("category", "divers"),
                 "category_status": tx.get("category_status", "pending"),
                 "confidence":      tx.get("confidence", 0.0),
-            })
+            }
+            for tx in new
+        ]
+        self._transactions.batch_create(records)
 
     def update_category(self, transaction_id: str, category: str, status: str):
+        safe_id = transaction_id.replace("'", "\\'")
         rows = self._transactions.all(
-            formula=f"{{transaction_id}}='{transaction_id}'"
+            formula=f"{{transaction_id}}='{safe_id}'"
         )
         if not rows:
             raise ValueError(f"Transaction {transaction_id} not found")

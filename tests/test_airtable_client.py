@@ -37,7 +37,23 @@ def test_upsert_transactions_calls_create(client):
              "amount": 690.0, "label": "LOYER DUPONT"}]
     client._transactions.all.return_value = []  # no existing
     client.upsert_transactions(txs)
-    client._transactions.create.assert_called_once()
+    client._transactions.batch_create.assert_called_once()
+
+
+def test_upsert_transactions_skips_duplicates(client):
+    """Dedup: existing transaction_id is not re-inserted."""
+    existing = [{"fields": {"transaction_id": "t1"}}]
+    client._transactions.all.return_value = existing
+    txs = [{"transaction_id": "t1", "date": "2026-06-01", "amount": 690.0, "label": "LOYER"}]
+    client.upsert_transactions(txs)
+    client._transactions.batch_create.assert_not_called()
+
+
+def test_update_category_raises_on_unknown_id(client):
+    """ValueError raised when transaction_id not found."""
+    client._transactions.all.return_value = []
+    with pytest.raises(ValueError, match="not found"):
+        client.update_category("nonexistent", "divers", "confirmed")
 
 
 def test_get_transactions_returns_list(client):
