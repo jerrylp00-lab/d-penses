@@ -59,9 +59,9 @@ def _fetch_and_store(at: AirtableClient):
     for tx in all_txs:
         normalised.append({
             "transaction_id": str(tx.get("id", "")),
-            "date":           tx.get("date", "")[:10],   # YYYY-MM-DD
-            "amount":         float(tx.get("amount", 0)),
-            "label":          tx.get("note") or tx.get("label") or "",
+            "date":           (tx.get("display_date") or tx.get("date", ""))[:10],
+            "amount":         float(tx.get("value", 0)),
+            "label":          tx.get("display_name") or tx.get("name") or "",
             "category":       "divers",
             "category_status": "pending",
             "confidence":     0.0,

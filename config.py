@@ -6,7 +6,7 @@ load_dotenv()
 
 # ── Finary ────────────────────────────────────────────────────────────────────
 # Run find_sci_account.py once to get this value
-SCI_ACCOUNT_ID = "REPLACE_ME"
+SCI_ACCOUNT_ID = "9416827e-9ee9-4a5e-9eed-bcb097915985"  # COMPTE COURANT S.C.I. SCI 4L — Crédit Agricole
 
 # ── Loyers hardcodés ──────────────────────────────────────────────────────────
 LOYERS = [
@@ -35,5 +35,5 @@ AIRTABLE_METADATA_TABLE     = os.environ.get("AIRTABLE_METADATA_TABLE", "Metadat
 
 # ── OpenRouter ────────────────────────────────────────────────────────────────
 OPENROUTER_API_KEY = os.environ["OPENROUTER_API_KEY"]
-OPENROUTER_MODEL   = "minimax/minimax-01"   # adjust slug if needed
+OPENROUTER_MODEL   = "google/gemini-2.5-flash-lite"
 LLM_CONFIDENCE_THRESHOLD = 0.7
