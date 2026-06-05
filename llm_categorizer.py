@@ -81,7 +81,12 @@ def categorize_transactions(transactions: list[dict]) -> list[dict]:
         log.error(f"LLM error {resp.status_code}: {resp.text[:200]}")
         return _fallback(transactions)
 
-    raw = resp.json()["choices"][0]["message"]["content"]
+    try:
+        raw = resp.json()["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, ValueError) as e:
+        log.error(f"LLM response parse error: {e}")
+        return _fallback(transactions)
+
     parsed = _parse_response(raw)
 
     if not parsed:
