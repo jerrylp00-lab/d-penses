@@ -1,0 +1,6 @@
+.env
+~/.finary_session.json
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
