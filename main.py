@@ -145,20 +145,26 @@ def _build_dashboard_data(transactions: list[dict]) -> dict:
 
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request, refresh: bool = False):
+    refresh_error: Optional[str] = None
     at           = AirtableClient()
     last_updated = at.get_last_updated()
 
     if refresh or _is_stale(last_updated):
-        _fetch_and_store(at)
-        last_updated = datetime.now(timezone.utc).replace(tzinfo=None)
+        try:
+            _fetch_and_store(at)
+            last_updated = datetime.now(timezone.utc).replace(tzinfo=None)
+        except Exception as e:
+            log.error(f"Refresh failed: {e}", exc_info=True)
+            refresh_error = str(e)
 
     cash         = at.get_cash()
     transactions = at.get_transactions()
     data         = _build_dashboard_data(transactions)
 
     return templates.TemplateResponse(request, "dashboard.html", {
-        "last_updated": last_updated.strftime("%d/%m/%Y %H:%M"),
-        "cash":         cash,
+        "last_updated":  last_updated.strftime("%d/%m/%Y %H:%M"),
+        "cash":          cash,
+        "refresh_error": refresh_error,
         **data,
     })
 
