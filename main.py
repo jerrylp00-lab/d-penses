@@ -1,6 +1,6 @@
 # main.py
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import FastAPI, Request
@@ -30,7 +30,7 @@ class ValidatePayload(BaseModel):
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 def _is_stale(last_updated: datetime) -> bool:
-    return (datetime.utcnow() - last_updated) > timedelta(days=config.CACHE_TTL_DAYS)
+    return (datetime.now(timezone.utc).replace(tzinfo=None) - last_updated) > timedelta(days=config.CACHE_TTL_DAYS)
 
 
 def _fetch_and_store(at: AirtableClient):
@@ -109,7 +109,7 @@ def _build_dashboard_data(transactions: list[dict]) -> dict:
         total_paid = sum(t["amount"] for t in loyer_txs if t["date"][:7] >= depuis)
 
         # Paid this month?
-        now_ym = datetime.utcnow().strftime("%Y-%m")
+        now_ym = datetime.now(timezone.utc).strftime("%Y-%m")
         paid_this_month = any(t["date"][:7] == now_ym for t in loyer_txs)
 
         loyer_cards.append({
@@ -150,14 +150,13 @@ def dashboard(request: Request, refresh: bool = False):
 
     if refresh or _is_stale(last_updated):
         _fetch_and_store(at)
-        last_updated = datetime.utcnow()
+        last_updated = datetime.now(timezone.utc).replace(tzinfo=None)
 
     cash         = at.get_cash()
     transactions = at.get_transactions()
     data         = _build_dashboard_data(transactions)
 
-    return templates.TemplateResponse("dashboard.html", {
-        "request":      request,
+    return templates.TemplateResponse(request, "dashboard.html", {
         "last_updated": last_updated.strftime("%d/%m/%Y %H:%M"),
         "cash":         cash,
         **data,
