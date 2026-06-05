@@ -20,7 +20,8 @@ class AirtableClient:
             return datetime(2000, 1, 1)
         value = rows[0]["fields"].get("value", "2000-01-01T00:00:00")
         try:
-            return datetime.fromisoformat(value)
+            dt = datetime.fromisoformat(value)
+            return dt.replace(tzinfo=None)  # always return naive UTC
         except ValueError:
             return datetime(2000, 1, 1)
 
