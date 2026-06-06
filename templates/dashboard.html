@@ -26,14 +26,11 @@
     th      { text-align: left; padding: 8px 12px; border-bottom: 2px solid #e5e7eb; color: #444; font-weight: 600; }
     td      { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
     tr:last-child td { border-bottom: none; }
-    .pending-row { opacity: .45; font-style: italic; }
-    .pending-row:hover { opacity: .7; }
     .cat-label { font-size: .78rem; background: #f3f4f6; border-radius: 4px; padding: 2px 6px; }
-    .btn-sm { padding: 3px 10px; border-radius: 5px; border: 1px solid #d1d5db; cursor: pointer; font-size: .8rem; }
-    .btn-confirm { background: #dcfce7; color: #166534; }
-    .btn-reject  { background: #fee2e2; color: #991b1b; }
-    select.cat-select { font-size: .8rem; padding: 2px 6px; border-radius: 5px; border: 1px solid #d1d5db; }
     .cash-amount { font-size: 2rem; font-weight: 800; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 32px; }
+    .export-link { font-size: .8rem; color: #6b7280; text-decoration: none; margin-left: 12px; }
+    .export-link:hover { color: #111; }
   </style>
 </head>
 <body>
@@ -54,49 +51,102 @@
   <button class="refresh-btn" onclick="location.href='/?refresh=true'">⟳ Rafraîchir</button>
 </div>
 
-<!-- Bloc 1: Cash -->
-<div class="section">
-  <h2>💰 Cash disponible</h2>
-  <div class="card" style="display:inline-block; min-width:200px;">
+<!-- KPIs -->
+<div class="kpi-grid">
+  <div class="card">
+    <div class="sub">Cash disponible</div>
     <div class="cash-amount">{{ "%.2f"|format(cash or 0) }} €</div>
-    <div class="sub">Solde compte SCI Crédit Agricole</div>
+    <div class="sub">Solde compte SCI</div>
+  </div>
+  <div class="card">
+    <div class="sub">Recettes ce mois</div>
+    <div class="cash-amount" style="color:#166534;">{{ "%.2f"|format(recettes_mois) }} €</div>
+  </div>
+  <div class="card">
+    <div class="sub">Dépenses ce mois</div>
+    <div class="cash-amount" style="color:#dc2626;">{{ "%.2f"|format(depenses_mois) }} €</div>
   </div>
 </div>
 
 <!-- Bloc 2: Loyers -->
 <div class="section">
-  <h2>🏠 Loyers</h2>
+  <h2>🏠 Loyers <a class="export-link" href="/export/loyers.csv">↓ CSV</a></h2>
   <div class="grid">
     {% for card in loyer_cards %}
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
         <div>
           <div style="font-weight:700;font-size:1.05rem;">{{ card.appart }}</div>
-          <div class="sub">{{ card.tenant }}</div>
+          <div class="sub">{{ card.type }}</div>
         </div>
-        {% if card.paid_this_month %}
-        <span class="badge badge-ok">À jour</span>
+        {% if card.last_tx %}
+        <span class="badge badge-ok">{{ card.last_tx.date }}</span>
         {% else %}
-        <span class="badge badge-late">En retard</span>
+        <span class="badge badge-late">Aucun paiement</span>
         {% endif %}
       </div>
-      <div class="amount">{{ card.montant }} €<span style="font-size:.9rem;font-weight:400;color:#666;">/mois</span></div>
-      <div class="sub" style="margin-top:8px;">Depuis {{ card.depuis }} · Total payé : <strong>{{ "%.0f"|format(card.total_paid) }} €</strong></div>
-      <div class="sub">Caution : {{ card.caution }} €</div>
+      <div class="amount">{{ card.montant_attendu }} €<span style="font-size:.9rem;font-weight:400;color:#666;">/mois</span></div>
+      <div class="sub" style="margin-top:8px;">{{ card.all_txs|length }} paiement(s) enregistré(s)</div>
     </div>
     {% endfor %}
   </div>
 </div>
 
-<!-- Bloc 3: Récurrentes + Prêts -->
+<!-- Bloc 3: Prêt récurrent -->
 <div class="section">
-  <h2>🔁 Dépenses récurrentes</h2>
-  {% if recurrents %}
-  <div class="card" style="margin-bottom:16px;">
+  <h2>🏦 Prêt récurrent <a class="export-link" href="/export/pret_recurrent.csv">↓ CSV</a></h2>
+  {% if pret_recurrent_last5 %}
+  <div class="card">
     <table>
       <thead><tr><th>Date</th><th>Libellé</th><th>Montant</th></tr></thead>
       <tbody>
-        {% for t in recurrents %}
+        {% for t in pret_recurrent_last5 %}
+        <tr>
+          <td>{{ t.date }}</td>
+          <td>{{ t.label }}</td>
+          <td style="color:#dc2626;">{{ "%.2f"|format(t.amount) }} €</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="sub">Aucune mensualité enregistrée.</p>
+  {% endif %}
+</div>
+
+<!-- Bloc 4: Prêt exceptionnel -->
+<div class="section">
+  <h2>🏦 Prêt exceptionnel <a class="export-link" href="/export/pret_exceptionnel.csv">↓ CSV</a></h2>
+  {% if pret_exceptionnel_last5 %}
+  <div class="card">
+    <table>
+      <thead><tr><th>Date</th><th>Libellé</th><th>Montant</th></tr></thead>
+      <tbody>
+        {% for t in pret_exceptionnel_last5 %}
+        <tr>
+          <td>{{ t.date }}</td>
+          <td>{{ t.label }}</td>
+          <td style="color:#dc2626;">{{ "%.2f"|format(t.amount) }} €</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="sub">Aucun frais exceptionnel enregistré.</p>
+  {% endif %}
+</div>
+
+<!-- Bloc 5: Récurrentes -->
+<div class="section">
+  <h2>🔁 Dépenses récurrentes <a class="export-link" href="/export/recurrents.csv">↓ CSV</a></h2>
+  {% if recurrents_last5 %}
+  <div class="card">
+    <table>
+      <thead><tr><th>Date</th><th>Libellé</th><th>Montant</th></tr></thead>
+      <tbody>
+        {% for t in recurrents_last5 %}
         <tr>
           <td>{{ t.date }}</td>
           <td>{{ t.label }}</td>
@@ -109,36 +159,18 @@
   {% else %}
   <p class="sub">Aucune dépense récurrente confirmée.</p>
   {% endif %}
-
-  {% if prets %}
-  <h2 style="margin-top:16px;">🏦 Prêts bancaires</h2>
-  <div class="card">
-    <table>
-      <thead><tr><th>Date</th><th>Libellé</th><th>Montant</th></tr></thead>
-      <tbody>
-        {% for t in prets %}
-        <tr>
-          <td>{{ t.date }}</td>
-          <td>{{ t.label }}</td>
-          <td style="color:#dc2626;">{{ "%.2f"|format(t.amount) }} €</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% endif %}
 </div>
 
-<!-- Bloc 4: Travaux -->
+<!-- Bloc 6: Travaux -->
 <div class="section">
-  <h2>🔨 Travaux</h2>
-  {% if travaux %}
+  <h2>🔨 Travaux <a class="export-link" href="/export/travaux.csv">↓ CSV</a></h2>
+  {% if travaux_last5 %}
   <div class="card">
     <div style="font-size:1.1rem;font-weight:700;margin-bottom:12px;">Total : {{ "%.2f"|format(travaux_total) }} €</div>
     <table>
       <thead><tr><th>Date</th><th>Libellé</th><th>Montant</th></tr></thead>
       <tbody>
-        {% for t in travaux %}
+        {% for t in travaux_last5 %}
         <tr>
           <td>{{ t.date }}</td>
           <td>{{ t.label }}</td>
@@ -153,65 +185,27 @@
   {% endif %}
 </div>
 
-<!-- Bloc 5: À valider -->
-{% if pending %}
+<!-- Bloc 7: Transactions récentes -->
 <div class="section">
-  <h2>⚠️ À valider ({{ pending|length }})</h2>
+  <h2>📋 Transactions récentes <a class="export-link" href="/export/transactions.csv">↓ CSV</a></h2>
+  {% if recent_last5 %}
   <div class="card">
     <table>
-      <thead>
-        <tr>
-          <th>Date</th><th>Libellé</th><th>Montant</th>
-          <th>Catégorie proposée</th><th>Confiance</th><th>Action</th>
-        </tr>
-      </thead>
+      <thead><tr><th>Date</th><th>Libellé</th><th>Montant</th><th>Catégorie</th></tr></thead>
       <tbody>
-        {% for t in pending %}
-        <tr class="pending-row" id="row-{{ t.transaction_id }}">
+        {% for t in recent_last5 %}
+        <tr>
           <td>{{ t.date }}</td>
           <td>{{ t.label }}</td>
-          <td>{{ "%.2f"|format(t.amount) }} €</td>
-          <td>
-            <select class="cat-select" id="cat-{{ t.transaction_id }}">
-              {% for cat in ["loyer","pret","recurring","travaux","divers"] %}
-              <option value="{{ cat }}" {% if cat == t.category %}selected{% endif %}>{{ cat }}</option>
-              {% endfor %}
-            </select>
-          </td>
-          <td>
-            {% if t.confidence < confidence_threshold %}
-            <span class="badge badge-warn">{{ "%.0f"|format(t.confidence * 100) }}%</span>
-            {% else %}
-            {{ "%.0f"|format(t.confidence * 100) }}%
-            {% endif %}
-          </td>
-          <td style="display:flex;gap:6px;">
-            <button class="btn-sm btn-confirm" onclick="validate('{{ t.transaction_id }}','confirmed')">✓</button>
-            <button class="btn-sm btn-reject"  onclick="validate('{{ t.transaction_id }}','rejected')">✗</button>
-          </td>
+          <td {% if t.amount < 0 %}style="color:#dc2626;"{% else %}style="color:#166534;"{% endif %}>{{ "%.2f"|format(t.amount) }} €</td>
+          <td><span class="cat-label">{{ t.category }}</span></td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
+  {% endif %}
 </div>
-{% endif %}
-
-<script>
-async function validate(txId, status) {
-  const select   = document.getElementById('cat-' + txId);
-  const category = select ? select.value : 'divers';
-  const resp = await fetch('/validate/' + txId, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({category, status}),
-  });
-  if (resp.ok) {
-    const row = document.getElementById('row-' + txId);
-    if (row) row.remove();
-  }
-}
-</script>
 
 </body>
 </html>

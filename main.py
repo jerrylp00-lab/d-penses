@@ -1,12 +1,13 @@
 # main.py
+import csv
+import io
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
 
 from airtable_client import AirtableClient
 from finary_auth import FinaryClient
@@ -20,13 +21,6 @@ app       = FastAPI(title="SCI Dashboard")
 templates = Jinja2Templates(directory="templates")
 
 
-# ── Pydantic models ────────────────────────────────────────────────────────────
-
-class ValidatePayload(BaseModel):
-    category: str
-    status: str  # "confirmed" | "rejected"
-
-
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 def _is_stale(last_updated: datetime) -> bool:
@@ -34,17 +28,14 @@ def _is_stale(last_updated: datetime) -> bool:
 
 
 def _fetch_and_store(at: AirtableClient):
-    """Fetch from Finary, upsert transactions, run LLM, update Airtable."""
     log.info("Refreshing data from Finary...")
     client = FinaryClient()
 
-    # Fetch balance
     accounts = client.holdings_accounts()
     sci = next((a for a in accounts if a.get("id") == config.SCI_ACCOUNT_ID), None)
     if sci:
         at.set_cash(sci.get("balance", 0) or 0)
 
-    # Fetch all transactions (paginate until empty)
     all_txs = []
     page = 1
     while True:
@@ -54,91 +45,102 @@ def _fetch_and_store(at: AirtableClient):
         all_txs.extend(batch)
         page += 1
 
-    # Normalise
-    normalised = []
-    for tx in all_txs:
-        normalised.append({
-            "transaction_id": str(tx.get("id", "")),
-            "date":           (tx.get("display_date") or tx.get("date", ""))[:10],
-            "amount":         float(tx.get("value", 0)),
-            "label":          tx.get("display_name") or tx.get("name") or "",
-            "category":       "divers",
-            "category_status": "pending",
-            "confidence":     0.0,
-        })
+    normalised = [
+        {
+            "transaction_id":  str(tx.get("id", "")),
+            "date":            (tx.get("display_date") or tx.get("date", ""))[:10],
+            "amount":          float(tx.get("value", 0)),
+            "label":           tx.get("display_name") or tx.get("name") or "",
+            "category":        "divers",
+            "category_status": "confirmed",
+            "confidence":      0.0,
+        }
+        for tx in all_txs
+    ]
 
-    # Upsert new transactions only
     at.upsert_transactions(normalised)
 
-    # LLM categorization on pending transactions
     existing = at.get_transactions()
-    pending  = [t for t in existing if t["category_status"] == "pending"]
-    if pending:
-        log.info(f"Running LLM on {len(pending)} pending transactions...")
-        results = categorize_transactions(pending)
+    if existing:
+        log.info(f"Running LLM on {len(existing)} transactions...")
+        results = categorize_transactions(existing)
         for r in results:
-            at.update_category(r["transaction_id"], r["category"], "pending")
+            at.update_category(r["transaction_id"], r["category"], "confirmed")
 
     at.set_last_updated()
     log.info("Refresh complete.")
 
 
-def _build_dashboard_data(transactions: list[dict]) -> dict:
-    """Compute all blocs from the transaction list."""
-    confirmed = [t for t in transactions if t["category_status"] == "confirmed"]
-    pending   = [t for t in transactions if t["category_status"] == "pending"]
+def _sorted_desc(txs: list[dict]) -> list[dict]:
+    return sorted(txs, key=lambda t: t["date"], reverse=True)
 
-    # ── Loyers ────────────────────────────────────────────────────────────────
+
+def _build_dashboard_data(transactions: list[dict]) -> dict:
+    now_ym = datetime.now().strftime("%Y-%m")
+
+    recettes_mois = sum(t["amount"] for t in transactions if t["amount"] > 0 and t["date"][:7] == now_ym)
+    depenses_mois = abs(sum(t["amount"] for t in transactions if t["amount"] < 0 and t["date"][:7] == now_ym))
+
     loyer_cards = []
     for loyer_cfg in config.LOYERS:
         montant = loyer_cfg["montant"]
-        depuis  = loyer_cfg["depuis"]   # "YYYY-MM"
-        appart  = loyer_cfg["appart"]
-        caution = loyer_cfg["caution"]
-
-        loyer_txs = [t for t in confirmed
-                     if t["category"] == "loyer" and abs(t["amount"] - montant) < 1]
-
-        # Determine tenant name from most recent matching transaction label
-        tenant_name = "Inconnu"
-        if loyer_txs:
-            latest = max(loyer_txs, key=lambda t: t["date"])
-            tenant_name = latest["label"].split()[-1].title() if latest["label"] else "Inconnu"
-
-        # Total paid since `depuis`
-        total_paid = sum(t["amount"] for t in loyer_txs if t["date"][:7] >= depuis)
-
-        # Paid this month?
-        now_ym = datetime.now(timezone.utc).strftime("%Y-%m")
-        paid_this_month = any(t["date"][:7] == now_ym for t in loyer_txs)
-
+        matching = _sorted_desc([
+            t for t in transactions
+            if t["category"] == "loyer" and abs(t["amount"] - montant) < 1
+        ])
+        last_tx = {"date": matching[0]["date"], "amount": matching[0]["amount"]} if matching else None
         loyer_cards.append({
-            "appart":         appart,
-            "tenant":         tenant_name,
-            "montant":        montant,
-            "caution":        caution,
-            "depuis":         depuis,
-            "total_paid":     round(total_paid, 2),
-            "paid_this_month": paid_this_month,
+            "appart":          loyer_cfg["appart"],
+            "type":            loyer_cfg["type"],
+            "montant_attendu": montant,
+            "last_tx":         last_tx,
+            "all_txs":         matching,
         })
 
-    # ── Récurrentes ───────────────────────────────────────────────────────────
-    recurrents = [t for t in confirmed if t["category"] == "recurring"]
-    prets      = [t for t in confirmed if t["category"] == "pret"]
+    def _bloc(category: str) -> tuple[list[dict], list[dict]]:
+        all_txs = _sorted_desc([t for t in transactions if t["category"] == category])
+        return all_txs[:5], all_txs
 
-    # ── Travaux ───────────────────────────────────────────────────────────────
-    travaux       = [t for t in confirmed if t["category"] == "travaux"]
-    travaux_total = round(sum(abs(t["amount"]) for t in travaux), 2)
+    pr_last5, pr_all = _bloc("pret_recurrent")
+    pe_last5, pe_all = _bloc("pret_exceptionnel")
+    tr_last5, tr_all = _bloc("travaux")
+    re_last5, re_all = _bloc("recurring")
+
+    all_sorted = _sorted_desc(transactions)
 
     return {
-        "loyer_cards":    loyer_cards,
-        "recurrents":     recurrents,
-        "prets":          prets,
-        "travaux":        travaux,
-        "travaux_total":  travaux_total,
-        "pending":        pending,
-        "confidence_threshold": config.LLM_CONFIDENCE_THRESHOLD,
+        "recettes_mois":           round(recettes_mois, 2),
+        "depenses_mois":           round(depenses_mois, 2),
+        "loyer_cards":             loyer_cards,
+        "pret_recurrent_last5":    pr_last5,
+        "pret_recurrent_all":      pr_all,
+        "pret_exceptionnel_last5": pe_last5,
+        "pret_exceptionnel_all":   pe_all,
+        "travaux_total":           round(sum(abs(t["amount"]) for t in tr_all), 2),
+        "travaux_last5":           tr_last5,
+        "travaux_all":             tr_all,
+        "recurrents_last5":        re_last5,
+        "recurrents_all":          re_all,
+        "recent_last5":            all_sorted[:5],
+        "recent_all":              all_sorted,
     }
+
+
+def _csv_response(rows: list[dict], filename: str) -> StreamingResponse:
+    if not rows:
+        content = "date,label,amount,category\r\n"
+    else:
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=["date", "label", "amount", "category"],
+                                extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(rows)
+        content = output.getvalue()
+    return StreamingResponse(
+        iter([content]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
@@ -169,8 +171,43 @@ def dashboard(request: Request, refresh: bool = False):
     })
 
 
-@app.post("/validate/{transaction_id}")
-def validate_transaction(transaction_id: str, payload: ValidatePayload):
+@app.get("/export/loyers.csv")
+def export_loyers():
     at = AirtableClient()
-    at.update_category(transaction_id, payload.category, payload.status)
-    return {"ok": True}
+    txs = [t for t in at.get_transactions() if t["category"] == "loyer"]
+    return _csv_response(_sorted_desc(txs), "loyers.csv")
+
+
+@app.get("/export/pret_recurrent.csv")
+def export_pret_recurrent():
+    at = AirtableClient()
+    txs = [t for t in at.get_transactions() if t["category"] == "pret_recurrent"]
+    return _csv_response(_sorted_desc(txs), "pret_recurrent.csv")
+
+
+@app.get("/export/pret_exceptionnel.csv")
+def export_pret_exceptionnel():
+    at = AirtableClient()
+    txs = [t for t in at.get_transactions() if t["category"] == "pret_exceptionnel"]
+    return _csv_response(_sorted_desc(txs), "pret_exceptionnel.csv")
+
+
+@app.get("/export/travaux.csv")
+def export_travaux():
+    at = AirtableClient()
+    txs = [t for t in at.get_transactions() if t["category"] == "travaux"]
+    return _csv_response(_sorted_desc(txs), "travaux.csv")
+
+
+@app.get("/export/recurrents.csv")
+def export_recurrents():
+    at = AirtableClient()
+    txs = [t for t in at.get_transactions() if t["category"] == "recurring"]
+    return _csv_response(_sorted_desc(txs), "recurrents.csv")
+
+
+@app.get("/export/transactions.csv")
+def export_transactions():
+    at = AirtableClient()
+    txs = at.get_transactions()
+    return _csv_response(_sorted_desc(txs), "transactions.csv")
