@@ -138,3 +138,11 @@ def test_export_transactions_csv(client):
     resp = client.get("/export/transactions.csv")
     assert resp.status_code == 200
     assert "date" in resp.text.lower()
+
+
+def test_build_dashboard_data_kpis():
+    from main import _build_dashboard_data
+    # Current month is 2026-06 — recettes = 640+690+60 = 1390, dépenses = 423.5+112+45 = 580.5
+    data = _build_dashboard_data(MOCK_TRANSACTIONS)
+    assert data["recettes_mois"] == pytest.approx(1390.0)
+    assert data["depenses_mois"] == pytest.approx(580.5)
