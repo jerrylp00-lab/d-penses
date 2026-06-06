@@ -4,208 +4,330 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SCI Dashboard</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #111; padding: 24px; }
-    h1 { font-size: 1.4rem; font-weight: 700; margin-bottom: 4px; }
-    h2 { font-size: 1rem; font-weight: 600; margin-bottom: 12px; color: #444; text-transform: uppercase; letter-spacing: .05em; }
-    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
-    .meta   { font-size: .85rem; color: #666; }
-    .refresh-btn { padding: 6px 14px; background: #111; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: .85rem; }
-    .refresh-btn:hover { background: #333; }
-    .grid   { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 32px; }
-    .card   { background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
-    .badge  { display: inline-block; padding: 3px 10px; border-radius: 99px; font-size: .75rem; font-weight: 600; }
-    .badge-ok  { background: #dcfce7; color: #166534; }
-    .badge-late { background: #fee2e2; color: #991b1b; }
-    .badge-warn { background: #fef9c3; color: #854d0e; }
-    .amount { font-size: 1.3rem; font-weight: 700; }
-    .sub    { font-size: .82rem; color: #666; margin-top: 4px; }
-    .section { margin-bottom: 32px; }
-    table   { width: 100%; border-collapse: collapse; font-size: .88rem; }
-    th      { text-align: left; padding: 8px 12px; border-bottom: 2px solid #e5e7eb; color: #444; font-weight: 600; }
-    td      { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
-    tr:last-child td { border-bottom: none; }
-    .cat-label { font-size: .78rem; background: #f3f4f6; border-radius: 4px; padding: 2px 6px; }
-    .cash-amount { font-size: 2rem; font-weight: 800; }
-    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 32px; }
-    .export-link { font-size: .8rem; color: #6b7280; text-decoration: none; margin-left: 12px; }
-    .export-link:hover { color: #111; }
-  </style>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
+<body class="bg-gray-100 text-gray-900 p-6 font-sans">
 
 {% if refresh_error %}
-<div style="background:#fee2e2;color:#991b1b;padding:12px 16px;border-radius:8px;margin-bottom:24px;font-size:.9rem;">
+<div class="bg-red-100 border border-red-300 text-red-800 rounded-lg px-4 py-3 mb-6 text-sm">
   ⚠️ Erreur lors du refresh : <strong>{{ refresh_error }}</strong><br>
-  <small>Les données affichées sont celles du dernier cache. Vérifiez les logs uvicorn pour plus de détails.</small>
+  <span class="text-xs">Les données affichées sont celles du dernier cache.</span>
 </div>
 {% endif %}
 
 <!-- Header -->
-<div class="header">
+<div class="flex justify-between items-center mb-6">
   <div>
-    <h1>SCI Dashboard</h1>
-    <p class="meta">Dernière mise à jour : {{ last_updated }}</p>
+    <h1 class="text-2xl font-bold">SCI Dashboard</h1>
+    <p class="text-sm text-gray-500">Dernière mise à jour : {{ last_updated }}</p>
   </div>
-  <button class="refresh-btn" onclick="location.href='/?refresh=true'">⟳ Rafraîchir</button>
+  <button onclick="location.href='/?refresh=true'"
+          class="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm hover:bg-gray-700 transition">
+    ⟳ Rafraîchir
+  </button>
 </div>
 
 <!-- KPIs -->
-<div class="kpi-grid">
-  <div class="card">
-    <div class="sub">Cash disponible</div>
-    <div class="cash-amount">{{ "%.2f"|format(cash or 0) }} €</div>
-    <div class="sub">Solde compte SCI</div>
+<div class="grid grid-cols-3 gap-4 mb-8">
+  <div class="bg-white rounded-xl p-5 shadow-sm">
+    <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Cash disponible</p>
+    <p class="text-3xl font-extrabold">{{ "%.0f"|format(cash or 0) }} €</p>
+    <p class="text-xs text-gray-400 mt-1">Solde SCI Crédit Agricole</p>
   </div>
-  <div class="card">
-    <div class="sub">Recettes ce mois</div>
-    <div class="cash-amount" style="color:#166534;">{{ "%.2f"|format(recettes_mois) }} €</div>
+  <div class="bg-white rounded-xl p-5 shadow-sm">
+    <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Recettes du mois</p>
+    <p class="text-3xl font-extrabold text-green-600">+{{ "%.0f"|format(recettes_mois) }} €</p>
   </div>
-  <div class="card">
-    <div class="sub">Dépenses ce mois</div>
-    <div class="cash-amount" style="color:#dc2626;">{{ "%.2f"|format(depenses_mois) }} €</div>
+  <div class="bg-white rounded-xl p-5 shadow-sm">
+    <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Dépenses du mois</p>
+    <p class="text-3xl font-extrabold text-red-600">-{{ "%.0f"|format(depenses_mois) }} €</p>
   </div>
 </div>
 
-<!-- Bloc 2: Loyers -->
-<div class="section">
-  <h2>🏠 Loyers <a class="export-link" href="/export/loyers.csv">↓ CSV</a></h2>
-  <div class="grid">
-    {% for card in loyer_cards %}
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+<!-- Actifs en location -->
+<h2 class="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-3">Actifs en location</h2>
+<div class="grid grid-cols-3 gap-4 mb-8">
+  {% for card in loyer_cards %}
+  <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+    <div class="px-5 py-4 cursor-pointer" onclick="toggleSection('loyer-{{ loop.index }}'); toggleChevron('chevron-loyer-{{ loop.index }}')">
+      <div class="flex justify-between items-start">
         <div>
-          <div style="font-weight:700;font-size:1.05rem;">{{ card.appart }}</div>
-          <div class="sub">{{ card.type }}</div>
+          <p class="font-semibold text-base">
+            {% if card.type == "garage" %}🏟{% else %}🏠{% endif %}
+            {{ card.appart }}
+          </p>
+          <p class="text-xs text-gray-400 mt-0.5">{{ card.montant_attendu }} €/mois attendu</p>
         </div>
-        {% if card.last_tx %}
-        <span class="badge badge-ok">{{ card.last_tx.date }}</span>
-        {% else %}
-        <span class="badge badge-late">Aucun paiement</span>
-        {% endif %}
+        <span class="text-gray-400 text-sm" id="chevron-loyer-{{ loop.index }}">▼</span>
       </div>
-      <div class="amount">{{ card.montant_attendu }} €<span style="font-size:.9rem;font-weight:400;color:#666;">/mois</span></div>
-      <div class="sub" style="margin-top:8px;">{{ card.all_txs|length }} paiement(s) enregistré(s)</div>
+      {% if card.last_tx %}
+      <p class="text-sm text-gray-600 mt-2">
+        Dernier : <strong>{{ card.last_tx.date }}</strong> · <strong>{{ "%.0f"|format(card.last_tx.amount) }} €</strong>
+      </p>
+      {% else %}
+      <p class="text-sm text-gray-400 mt-2 italic">Aucune transaction</p>
+      {% endif %}
     </div>
-    {% endfor %}
+    <div id="loyer-{{ loop.index }}" class="hidden border-t border-gray-100 px-5 py-3">
+      {% if card.all_txs %}
+      <table class="w-full text-sm">
+        <thead><tr class="text-xs text-gray-400"><th class="text-left py-1">Date</th><th class="text-left">Libellé</th><th class="text-right">Montant</th></tr></thead>
+        <tbody>
+          {% for t in card.all_txs %}
+          <tr class="border-t border-gray-50">
+            <td class="py-1.5 pr-4 whitespace-nowrap">{{ t.date }}</td>
+            <td class="pr-4 text-gray-600 truncate max-w-xs">{{ t.label }}</td>
+            <td class="text-right font-medium text-green-600">{{ "%.0f"|format(t.amount) }} €</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="text-sm text-gray-400 italic">Aucune transaction</p>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Prêt bancaire -->
+<h2 class="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-3">Prêt bancaire</h2>
+<div class="grid grid-cols-2 gap-4 mb-8">
+
+  <!-- Mensualités -->
+  <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+    <div class="px-5 py-4 flex justify-between items-center">
+      <div>
+        <p class="font-semibold">🏦 Mensualités</p>
+        <p class="text-xs text-gray-400">{{ pret_recurrent_all|length }} transaction(s)</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="/export/pret_recurrent.csv" class="text-xs text-blue-500 hover:underline">CSV</a>
+      </div>
+    </div>
+    {% if pret_recurrent_last5 %}
+    <div class="border-t border-gray-100 px-5 py-3">
+      <table class="w-full text-sm">
+        <tbody>
+          {% for t in pret_recurrent_last5 %}
+          <tr class="border-t border-gray-50 first:border-0">
+            <td class="py-1.5 pr-4 whitespace-nowrap">{{ t.date }}</td>
+            <td class="pr-4 text-gray-600 truncate max-w-xs">{{ t.label }}</td>
+            <td class="text-right font-medium text-red-600">{{ "%.2f"|format(t.amount) }} €</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tbody id="pret-rec-more" class="hidden">
+          {% for t in pret_recurrent_all[5:] %}
+          <tr class="border-t border-gray-50">
+            <td class="py-1.5 pr-4 whitespace-nowrap">{{ t.date }}</td>
+            <td class="pr-4 text-gray-600 truncate max-w-xs">{{ t.label }}</td>
+            <td class="text-right font-medium text-red-600">{{ "%.2f"|format(t.amount) }} €</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% if pret_recurrent_all|length > 5 %}
+      <button onclick="toggleSection('pret-rec-more')"
+              class="text-xs text-blue-500 hover:underline mt-2">Voir tout ({{ pret_recurrent_all|length }})</button>
+      {% endif %}
+    </div>
+    {% else %}
+    <p class="px-5 py-3 text-sm text-gray-400 italic">Aucune mensualité.</p>
+    {% endif %}
+  </div>
+
+  <!-- Frais exceptionnels -->
+  <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+    <div class="px-5 py-4 flex justify-between items-center">
+      <div>
+        <p class="font-semibold">📋 Frais exceptionnels</p>
+        <p class="text-xs text-gray-400">{{ pret_exceptionnel_all|length }} transaction(s)</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="/export/pret_exceptionnel.csv" class="text-xs text-blue-500 hover:underline">CSV</a>
+      </div>
+    </div>
+    {% if pret_exceptionnel_last5 %}
+    <div class="border-t border-gray-100 px-5 py-3">
+      <table class="w-full text-sm">
+        <tbody>
+          {% for t in pret_exceptionnel_last5 %}
+          <tr class="border-t border-gray-50 first:border-0">
+            <td class="py-1.5 pr-4 whitespace-nowrap">{{ t.date }}</td>
+            <td class="pr-4 text-gray-600 truncate max-w-xs">{{ t.label }}</td>
+            <td class="text-right font-medium text-red-600">{{ "%.2f"|format(t.amount) }} €</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tbody id="pret-exc-more" class="hidden">
+          {% for t in pret_exceptionnel_all[5:] %}
+          <tr class="border-t border-gray-50">
+            <td class="py-1.5 pr-4 whitespace-nowrap">{{ t.date }}</td>
+            <td class="pr-4 text-gray-600 truncate max-w-xs">{{ t.label }}</td>
+            <td class="text-right font-medium text-red-600">{{ "%.2f"|format(t.amount) }} €</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% if pret_exceptionnel_all|length > 5 %}
+      <button onclick="toggleSection('pret-exc-more')"
+              class="text-xs text-blue-500 hover:underline mt-2">Voir tout ({{ pret_exceptionnel_all|length }})</button>
+      {% endif %}
+    </div>
+    {% else %}
+    <p class="px-5 py-3 text-sm text-gray-400 italic">Aucun frais exceptionnel.</p>
+    {% endif %}
   </div>
 </div>
 
-<!-- Bloc 3: Prêt récurrent -->
-<div class="section">
-  <h2>🏦 Prêt récurrent <a class="export-link" href="/export/pret_recurrent.csv">↓ CSV</a></h2>
-  {% if pret_recurrent_last5 %}
-  <div class="card">
-    <table>
-      <thead><tr><th>Date</th><th>Libellé</th><th>Montant</th></tr></thead>
-      <tbody>
-        {% for t in pret_recurrent_last5 %}
-        <tr>
-          <td>{{ t.date }}</td>
-          <td>{{ t.label }}</td>
-          <td style="color:#dc2626;">{{ "%.2f"|format(t.amount) }} €</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+<!-- Travaux -->
+<h2 class="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-3">Travaux</h2>
+<div class="bg-white rounded-xl shadow-sm overflow-hidden mb-8">
+  <div class="px-5 py-4 flex justify-between items-center">
+    <div>
+      <p class="font-semibold">🔨 Travaux — Total : {{ "%.0f"|format(travaux_total) }} €</p>
+      <p class="text-xs text-gray-400">{{ travaux_all|length }} transaction(s)</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <a href="/export/travaux.csv" class="text-xs text-blue-500 hover:underline">CSV</a>
+    </div>
   </div>
-  {% else %}
-  <p class="sub">Aucune mensualité enregistrée.</p>
-  {% endif %}
-</div>
-
-<!-- Bloc 4: Prêt exceptionnel -->
-<div class="section">
-  <h2>🏦 Prêt exceptionnel <a class="export-link" href="/export/pret_exceptionnel.csv">↓ CSV</a></h2>
-  {% if pret_exceptionnel_last5 %}
-  <div class="card">
-    <table>
-      <thead><tr><th>Date</th><th>Libellé</th><th>Montant</th></tr></thead>
-      <tbody>
-        {% for t in pret_exceptionnel_last5 %}
-        <tr>
-          <td>{{ t.date }}</td>
-          <td>{{ t.label }}</td>
-          <td style="color:#dc2626;">{{ "%.2f"|format(t.amount) }} €</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% else %}
-  <p class="sub">Aucun frais exceptionnel enregistré.</p>
-  {% endif %}
-</div>
-
-<!-- Bloc 5: Récurrentes -->
-<div class="section">
-  <h2>🔁 Dépenses récurrentes <a class="export-link" href="/export/recurrents.csv">↓ CSV</a></h2>
-  {% if recurrents_last5 %}
-  <div class="card">
-    <table>
-      <thead><tr><th>Date</th><th>Libellé</th><th>Montant</th></tr></thead>
-      <tbody>
-        {% for t in recurrents_last5 %}
-        <tr>
-          <td>{{ t.date }}</td>
-          <td>{{ t.label }}</td>
-          <td style="color:#dc2626;">{{ "%.2f"|format(t.amount) }} €</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% else %}
-  <p class="sub">Aucune dépense récurrente confirmée.</p>
-  {% endif %}
-</div>
-
-<!-- Bloc 6: Travaux -->
-<div class="section">
-  <h2>🔨 Travaux <a class="export-link" href="/export/travaux.csv">↓ CSV</a></h2>
   {% if travaux_last5 %}
-  <div class="card">
-    <div style="font-size:1.1rem;font-weight:700;margin-bottom:12px;">Total : {{ "%.2f"|format(travaux_total) }} €</div>
-    <table>
-      <thead><tr><th>Date</th><th>Libellé</th><th>Montant</th></tr></thead>
+  <div class="border-t border-gray-100 px-5 py-3">
+    <table class="w-full text-sm">
       <tbody>
         {% for t in travaux_last5 %}
-        <tr>
-          <td>{{ t.date }}</td>
-          <td>{{ t.label }}</td>
-          <td style="color:#dc2626;">{{ "%.2f"|format(t.amount) }} €</td>
+        <tr class="border-t border-gray-50 first:border-0">
+          <td class="py-1.5 pr-4 whitespace-nowrap">{{ t.date }}</td>
+          <td class="pr-4 text-gray-600 truncate max-w-xs">{{ t.label }}</td>
+          <td class="text-right font-medium text-red-600">{{ "%.2f"|format(t.amount) }} €</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tbody id="travaux-more" class="hidden">
+        {% for t in travaux_all[5:] %}
+        <tr class="border-t border-gray-50">
+          <td class="py-1.5 pr-4 whitespace-nowrap">{{ t.date }}</td>
+          <td class="pr-4 text-gray-600 truncate max-w-xs">{{ t.label }}</td>
+          <td class="text-right font-medium text-red-600">{{ "%.2f"|format(t.amount) }} €</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
+    {% if travaux_all|length > 5 %}
+    <button onclick="toggleSection('travaux-more')"
+            class="text-xs text-blue-500 hover:underline mt-2">Voir tout ({{ travaux_all|length }})</button>
+    {% endif %}
   </div>
   {% else %}
-  <p class="sub">Aucun travaux confirmés.</p>
+  <p class="px-5 py-3 text-sm text-gray-400 italic">Aucun travaux confirmés.</p>
   {% endif %}
 </div>
 
-<!-- Bloc 7: Transactions récentes -->
-<div class="section">
-  <h2>📋 Transactions récentes <a class="export-link" href="/export/transactions.csv">↓ CSV</a></h2>
-  {% if recent_last5 %}
-  <div class="card">
-    <table>
-      <thead><tr><th>Date</th><th>Libellé</th><th>Montant</th><th>Catégorie</th></tr></thead>
+<!-- Dépenses récurrentes -->
+<h2 class="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-3">Dépenses récurrentes</h2>
+<div class="bg-white rounded-xl shadow-sm overflow-hidden mb-8">
+  <div class="px-5 py-4 flex justify-between items-center">
+    <div>
+      <p class="font-semibold">🔁 Récurrentes</p>
+      <p class="text-xs text-gray-400">{{ recurrents_all|length }} transaction(s)</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <a href="/export/recurrents.csv" class="text-xs text-blue-500 hover:underline">CSV</a>
+    </div>
+  </div>
+  {% if recurrents_last5 %}
+  <div class="border-t border-gray-100 px-5 py-3">
+    <table class="w-full text-sm">
       <tbody>
-        {% for t in recent_last5 %}
-        <tr>
-          <td>{{ t.date }}</td>
-          <td>{{ t.label }}</td>
-          <td {% if t.amount < 0 %}style="color:#dc2626;"{% else %}style="color:#166534;"{% endif %}>{{ "%.2f"|format(t.amount) }} €</td>
-          <td><span class="cat-label">{{ t.category }}</span></td>
+        {% for t in recurrents_last5 %}
+        <tr class="border-t border-gray-50 first:border-0">
+          <td class="py-1.5 pr-4 whitespace-nowrap">{{ t.date }}</td>
+          <td class="pr-4 text-gray-600 truncate max-w-xs">{{ t.label }}</td>
+          <td class="text-right font-medium text-red-600">{{ "%.2f"|format(t.amount) }} €</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tbody id="recurrents-more" class="hidden">
+        {% for t in recurrents_all[5:] %}
+        <tr class="border-t border-gray-50">
+          <td class="py-1.5 pr-4 whitespace-nowrap">{{ t.date }}</td>
+          <td class="pr-4 text-gray-600 truncate max-w-xs">{{ t.label }}</td>
+          <td class="text-right font-medium text-red-600">{{ "%.2f"|format(t.amount) }} €</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
+    {% if recurrents_all|length > 5 %}
+    <button onclick="toggleSection('recurrents-more')"
+            class="text-xs text-blue-500 hover:underline mt-2">Voir tout ({{ recurrents_all|length }})</button>
+    {% endif %}
   </div>
+  {% else %}
+  <p class="px-5 py-3 text-sm text-gray-400 italic">Aucune dépense récurrente.</p>
   {% endif %}
 </div>
+
+<!-- Dernières transactions -->
+<h2 class="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-3">Dernières transactions</h2>
+<div class="bg-white rounded-xl shadow-sm overflow-hidden mb-8">
+  <div class="px-5 py-4 flex justify-between items-center">
+    <p class="font-semibold">📋 Toutes catégories</p>
+    <a href="/export/transactions.csv" class="text-xs text-blue-500 hover:underline">Export CSV</a>
+  </div>
+  <div class="border-t border-gray-100 px-5 py-3">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-xs text-gray-400">
+          <th class="text-left py-1 pr-4">Date</th>
+          <th class="text-left pr-4">Libellé</th>
+          <th class="text-left pr-4">Catégorie</th>
+          <th class="text-right">Montant</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in recent_last5 %}
+        <tr class="border-t border-gray-50">
+          <td class="py-1.5 pr-4 whitespace-nowrap">{{ t.date }}</td>
+          <td class="pr-4 text-gray-600 truncate max-w-xs">{{ t.label }}</td>
+          <td class="pr-4"><span class="text-xs bg-gray-100 rounded px-1.5 py-0.5">{{ t.category }}</span></td>
+          <td class="text-right font-medium {% if t.amount > 0 %}text-green-600{% else %}text-red-600{% endif %}">
+            {{ "%.2f"|format(t.amount) }} €
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tbody id="recent-more" class="hidden">
+        {% for t in recent_all[5:] %}
+        <tr class="border-t border-gray-50">
+          <td class="py-1.5 pr-4 whitespace-nowrap">{{ t.date }}</td>
+          <td class="pr-4 text-gray-600 truncate max-w-xs">{{ t.label }}</td>
+          <td class="pr-4"><span class="text-xs bg-gray-100 rounded px-1.5 py-0.5">{{ t.category }}</span></td>
+          <td class="text-right font-medium {% if t.amount > 0 %}text-green-600{% else %}text-red-600{% endif %}">
+            {{ "%.2f"|format(t.amount) }} €
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% if recent_all|length > 5 %}
+    <button onclick="toggleSection('recent-more')"
+            class="text-xs text-blue-500 hover:underline mt-2">Voir tout ({{ recent_all|length }})</button>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+function toggleSection(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.toggle('hidden');
+}
+function toggleChevron(id) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = el.textContent.trim() === '▼' ? '▲' : '▼';
+}
+</script>
 
 </body>
 </html>
