@@ -10,18 +10,9 @@ SCI_ACCOUNT_ID = "9416827e-9ee9-4a5e-9eed-bcb097915985"  # COMPTE COURANT S.C.I.
 
 # ── Loyers hardcodés ──────────────────────────────────────────────────────────
 LOYERS = [
-    {
-        "appart": "Appart 1",
-        "montant": 690,
-        "caution": 1380,
-        "depuis": "2025-09",   # YYYY-MM
-    },
-    {
-        "appart": "Appart 2",
-        "montant": 640,
-        "caution": 1280,
-        "depuis": "2025-09",
-    },
+    {"montant": 640, "appart": "Appart Jean Bart",  "caution": 1280, "type": "appart"},
+    {"montant": 690, "appart": "Appart Vallabbé",   "caution": 1380, "type": "appart"},
+    {"montant": 60,  "appart": "Garage Vallabbé",   "caution": 0,    "type": "garage"},
 ]
 
 # ── Cache ─────────────────────────────────────────────────────────────────────
