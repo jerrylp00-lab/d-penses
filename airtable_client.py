@@ -86,7 +86,7 @@ class AirtableClient:
                 "amount":          tx["amount"],
                 "label":           tx["label"],
                 "category":        tx.get("category", "divers"),
-                "category_status": tx.get("category_status", "pending"),
+                "category_status": tx.get("category_status", "confirmed"),
                 "confidence":      tx.get("confidence", 0.0),
             }
             for tx in new
