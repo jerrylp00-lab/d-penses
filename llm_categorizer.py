@@ -5,38 +5,26 @@ import config
 
 log = logging.getLogger("llm_categorizer")
 
-CATEGORIES = ["loyer", "pret_recurrent", "pret_exceptionnel", "recurring", "travaux", "divers"]
+CATEGORIES = ["alimentation", "transport", "loisirs", "sante", "shopping", "abonnements", "virement", "divers"]
 
-SYSTEM_PROMPT = """Tu es un expert bancaire spécialisé en prêts immobiliers pour une SCI française.
+SYSTEM_PROMPT = """Tu es un assistant bancaire spécialisé en finances personnelles françaises.
 Classe chaque transaction bancaire dans exactement une de ces catégories :
-- loyer            : virement entrant de 690€, 640€ ou 60€ (loyer locataire)
-- pret_recurrent   : mensualité régulière CAMCA (même montant chaque mois)
-- pret_exceptionnel: frais CAMCA uniques ou inhabituels (frais de dossier, garanties, intérêts différés, montants non récurrents)
-- recurring        : dépense sortante récurrente hors prêt (même libellé et montant approximatif chaque mois)
-- travaux          : libellé contenant travaux/artisan/matériaux/rénovation (les chèques CHQ sont déjà traités)
-- divers           : tout ce qui ne rentre pas dans les catégories ci-dessus
+- alimentation  : courses alimentaires, restaurants, cafés, livraisons de repas
+- transport     : SNCF, Uber, Lyft, carburant, parking, péages, Vélib, transports en commun
+- loisirs       : cinéma, concerts, sports, jeux, livres, culture, voyages, hôtels
+- sante         : pharmacie, médecin, dentiste, mutuelle, opticien, parapharmacie
+- shopping      : vêtements, électronique, Amazon, FNAC, équipement maison, cosmétiques
+- abonnements   : Netflix, Spotify, Canal+, abonnements téléphone/internet, logiciels SaaS
+- virement      : virement entre comptes personnels, remboursement entre particuliers
+- divers        : tout ce qui ne rentre pas dans les catégories ci-dessus
 
-Les prélèvements dont le libellé contient 'CAMCA' sont liés à un prêt immobilier SCI.
 Réponds UNIQUEMENT avec un tableau JSON valide, sans texte autour.
 Format : [{"transaction_id": "...", "category": "...", "confidence": 0.0}]
 confidence entre 0.0 et 1.0."""
 
 
 def _preprocess(transactions: list[dict]) -> tuple[list[dict], list[dict]]:
-    """Split transactions: chèques (CHQ/CHEQUE) → travaux auto; rest → LLM."""
-    pre_categorized = []
-    to_llm = []
-    for tx in transactions:
-        label_upper = tx.get("label", "").upper()
-        if "CHQ" in label_upper or "CHEQUE" in label_upper:
-            pre_categorized.append({
-                "transaction_id": tx["transaction_id"],
-                "category": "travaux",
-                "confidence": 1.0,
-            })
-        else:
-            to_llm.append(tx)
-    return pre_categorized, to_llm
+    return [], transactions
 
 
 def _build_prompt(transactions: list[dict]) -> str:
@@ -62,21 +50,26 @@ def _parse_response(raw: str) -> list[dict]:
     return []
 
 
+def _fallback(transactions: list[dict]) -> list[dict]:
+    return [
+        {"transaction_id": t["transaction_id"], "category": "divers", "confidence": 0.0}
+        for t in transactions
+    ]
+
+
 def categorize_transactions(transactions: list[dict]) -> list[dict]:
-    """Categorize transactions. Chèques auto-tagged travaux; rest sent to LLM."""
     if not transactions:
         return []
 
     pre_categorized, to_llm = _preprocess(transactions)
-
     if not to_llm:
         return pre_categorized
 
     headers = {
         "Authorization": f"Bearer {config.OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://sci-dashboard.local",
-        "X-Title": "SCI Dashboard",
+        "HTTP-Referer": "https://finance-dashboard.local",
+        "X-Title": "Personal Finance Dashboard",
     }
     payload = {
         "model": config.OPENROUTER_MODEL,
@@ -94,7 +87,7 @@ def categorize_transactions(transactions: list[dict]) -> list[dict]:
             json=payload,
             timeout=30,
         )
-    except requests.RequestException as e:
+    except Exception as e:
         log.error(f"LLM request failed: {e}")
         return pre_categorized + _fallback(to_llm)
 
@@ -123,10 +116,3 @@ def categorize_transactions(transactions: list[dict]) -> list[dict]:
         for t in to_llm
     ]
     return pre_categorized + llm_results
-
-
-def _fallback(transactions: list[dict]) -> list[dict]:
-    return [
-        {"transaction_id": t["transaction_id"], "category": "divers", "confidence": 0.0}
-        for t in transactions
-    ]
