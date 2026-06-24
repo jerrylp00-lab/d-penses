@@ -150,7 +150,7 @@ def get_month_trend(
 
 
 def _encode_image(category: str) -> str | None:
-    path = Path(f"static/report-images/{category}.png")
+    path = Path(__file__).parent / "static" / "report-images" / f"{category}.png"
     if not path.exists():
         return None
     return base64.b64encode(path.read_bytes()).decode()
@@ -192,7 +192,7 @@ def render_report(
     all_transactions: list[dict],
 ) -> str:
     """Retourne le HTML du rapport pour `profile`."""
-    env = Environment(loader=FileSystemLoader("templates"), autoescape=True)
+    env = Environment(loader=FileSystemLoader(str(Path(__file__).parent / "templates")), autoescape=True)
     tmpl = env.get_template("report_email.html")
 
     prenom     = "Jérémy" if profile == "jeremy" else "Manon"
