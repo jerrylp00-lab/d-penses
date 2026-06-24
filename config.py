@@ -40,3 +40,12 @@ GOOGLE_SERVICE_ACCOUNT_JSON = os.environ["GOOGLE_SERVICE_ACCOUNT_JSON"]
 OPENROUTER_API_KEY       = os.environ["OPENROUTER_API_KEY"]
 OPENROUTER_MODEL         = "google/gemini-2.5-flash-lite"
 LLM_CONFIDENCE_THRESHOLD = 0.7
+
+# ── Report Email ───────────────────────────────────────────────────────────────
+GMAIL_SENDER      = "jeremylepetit92@gmail.com"
+GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "")
+REPORT_RECIPIENTS = {
+    "jeremy": "jeremylepetit92@gmail.com",
+    "manon":  "manon.tinniere@gmail.com",
+}
+REPORT_PROFILES   = ["jeremy", "manon"]
