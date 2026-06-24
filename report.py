@@ -46,17 +46,12 @@ def _fmt_date(d: date) -> str:
 
 
 def get_report_week(reference: date | None = None) -> tuple[date, date]:
-    """Retourne (mardi, lundi) de la semaine précédant la semaine de `reference`."""
+    """Retourne (lundi, dimanche) de la semaine ISO précédant la semaine de `reference`."""
     ref = reference or date.today()
-    # Find Tuesday of the current week
-    # weekday() returns 0=Monday, 1=Tuesday, ..., 6=Sunday
-    # Tuesday is 1, so we want to go back (weekday - 1) days to get to Tuesday
-    tuesday_this_week = ref - timedelta(days=ref.weekday() - 1)
-    # Go back one week to get Tuesday of previous week
-    tuesday_prev_week = tuesday_this_week - timedelta(weeks=1)
-    # Monday is 6 days after Tuesday
-    monday_after = tuesday_prev_week + timedelta(days=6)
-    return tuesday_prev_week, monday_after
+    lundi_this_week = ref - timedelta(days=ref.weekday())  # weekday()=0 for Monday
+    lundi_s1 = lundi_this_week - timedelta(weeks=1)
+    dimanche_s1 = lundi_s1 + timedelta(days=6)
+    return lundi_s1, dimanche_s1
 
 
 def get_prev_week(week_start: date) -> tuple[date, date]:

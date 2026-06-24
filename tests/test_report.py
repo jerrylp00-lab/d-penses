@@ -2,20 +2,21 @@ from datetime import date
 from report import get_report_week, get_prev_week
 
 def test_get_report_week_on_monday():
-    # Si on appelle le lundi 23 juin 2026, la semaine rapportée est 16-22 juin
-    mon = date(2026, 6, 23)
+    # Monday June 22, 2026 → previous week = June 15 (Mon) to June 21 (Sun)
+    mon = date(2026, 6, 22)
     start, end = get_report_week(reference=mon)
-    assert start == date(2026, 6, 16)
-    assert end   == date(2026, 6, 22)
+    assert start == date(2026, 6, 15)
+    assert end   == date(2026, 6, 21)
 
 def test_get_report_week_midweek():
-    # Appelé n'importe quel jour de la semaine du 23 → même résultat
-    wed = date(2026, 6, 25)
+    # Wednesday June 24, 2026 (same week as June 22) → same previous week
+    wed = date(2026, 6, 24)
     start, end = get_report_week(reference=wed)
-    assert start == date(2026, 6, 16)
-    assert end   == date(2026, 6, 22)
+    assert start == date(2026, 6, 15)
+    assert end   == date(2026, 6, 21)
 
 def test_get_prev_week():
-    start_s2, end_s2 = get_prev_week(date(2026, 6, 16))
-    assert start_s2 == date(2026, 6, 9)
-    assert end_s2   == date(2026, 6, 15)
+    # Given Monday June 15 → prev week = June 8 (Mon) to June 14 (Sun)
+    start_s2, end_s2 = get_prev_week(date(2026, 6, 15))
+    assert start_s2 == date(2026, 6, 8)
+    assert end_s2   == date(2026, 6, 14)
