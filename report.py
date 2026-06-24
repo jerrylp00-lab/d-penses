@@ -240,3 +240,65 @@ def render_report(
         week_total=week_total,
         month_trend=month_trend,
     )
+
+
+def send_html_email(to: str, subject: str, html: str) -> None:
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"]    = config.GMAIL_SENDER
+    msg["To"]      = to
+    msg.attach(MIMEText(html, "html", "utf-8"))
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        server.login(config.GMAIL_SENDER, config.GMAIL_APP_PASSWORD)
+        server.sendmail(config.GMAIL_SENDER, to, msg.as_string())
+
+
+def generate_and_send(dry_run: bool = False) -> dict[str, str]:
+    """
+    Génère et envoie les rapports pour jeremy et manon.
+    dry_run=True : retourne le HTML sans envoyer de mail (pour /report/preview).
+    Retourne un dict {profile: html}.
+    """
+    import logging
+    log = logging.getLogger("report")
+
+    sc = SheetsClient(config.GOOGLE_SHEETS_ID, config.GOOGLE_SERVICE_ACCOUNT_JSON)
+    all_txs = sc.get_transactions()  # tous profils
+
+    week_start, week_end   = get_report_week()
+    prev_start, prev_end   = get_prev_week(week_start)
+
+    # Stats par profil pour les deux semaines
+    txs_j = [t for t in all_txs if t.get("profile") == "jeremy"]
+    txs_m = [t for t in all_txs if t.get("profile") == "manon"]
+
+    stats_j_curr = compute_stats(txs_j, week_start, week_end)
+    stats_m_curr = compute_stats(txs_m, week_start, week_end)
+    stats_j_prev = compute_stats(txs_j, prev_start, prev_end)
+    stats_m_prev = compute_stats(txs_m, prev_start, prev_end)
+
+    results = {}
+    for profile in config.REPORT_PROFILES:
+        stats_curr  = stats_j_curr if profile == "jeremy" else stats_m_curr
+        stats_prev  = stats_j_prev if profile == "jeremy" else stats_m_prev
+        txs_profile = txs_j        if profile == "jeremy" else txs_m
+
+        html = render_report(
+            profile=profile,
+            stats_current=stats_curr,
+            stats_prev=stats_prev,
+            stats_j=stats_j_curr,
+            stats_m=stats_m_curr,
+            week_start=week_start,
+            week_end=week_end,
+            all_transactions=txs_profile,
+        )
+        results[profile] = html
+
+        if not dry_run:
+            subject = f"💸 Ta semaine du {_fmt_date(week_start)} au {_fmt_date(week_end)}"
+            to      = config.REPORT_RECIPIENTS[profile]
+            send_html_email(to, subject, html)
+            log.info(f"Report sent to {to}")
+
+    return results
