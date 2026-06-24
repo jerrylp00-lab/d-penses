@@ -77,4 +77,6 @@ def report_preview(profile: str = "jeremy"):
     if profile not in config.REPORT_PROFILES:
         profile = "jeremy"
     results = generate_and_send(dry_run=True)
+    if profile not in results:
+        return HTMLResponse(content="<p>Erreur : génération du rapport échouée.</p>", status_code=500)
     return HTMLResponse(content=results[profile])
