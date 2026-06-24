@@ -42,7 +42,7 @@ def _fetch_account_transactions(client: FinaryClient, account: dict, profile: st
     account_id = account["id"]
     bank       = account["bank"]
     tx_type    = account["type"]
-    is_ca_courant = bank == "CA" and tx_type == "courant"
+    is_differe_courant = account.get("differe", False) and tx_type == "courant"
 
     rows = []
     page = 1
@@ -52,7 +52,7 @@ def _fetch_account_transactions(client: FinaryClient, account: dict, profile: st
             break
         for raw in batch:
             label = raw.get("display_name") or raw.get("name") or ""
-            if is_ca_courant and _is_differe_line(label):
+            if is_differe_courant and _is_differe_line(label):
                 continue
             rows.append(_normalize_transaction(raw, account_id, bank, tx_type, profile))
         page += 1

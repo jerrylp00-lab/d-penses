@@ -38,7 +38,9 @@ def _kpis(transactions: list[dict]) -> dict:
 
     def spending(ym: str) -> float:
         return abs(sum(float(t.get("amount", 0)) for t in transactions
-                       if t.get("date", "")[:7] == ym and float(t.get("amount", 0)) < 0))
+                       if t.get("date", "")[:7] == ym
+                       and float(t.get("amount", 0)) < 0
+                       and t.get("category") != "virement_interne"))
 
     curr  = round(spending(curr_ym), 2)
     prev  = round(spending(prev_ym), 2)

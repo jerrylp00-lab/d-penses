@@ -5,18 +5,19 @@ import config
 
 log = logging.getLogger("llm_categorizer")
 
-CATEGORIES = ["alimentation", "transport", "loisirs", "sante", "shopping", "abonnements", "virement", "divers"]
+CATEGORIES = ["alimentation", "transport", "loisirs", "sante", "shopping", "abonnements", "virement", "virement_interne", "divers"]
 
 SYSTEM_PROMPT = """Tu es un assistant bancaire spécialisé en finances personnelles françaises.
 Classe chaque transaction bancaire dans exactement une de ces catégories :
-- alimentation  : courses alimentaires, restaurants, cafés, livraisons de repas
-- transport     : SNCF, Uber, Lyft, carburant, parking, péages, Vélib, transports en commun
-- loisirs       : cinéma, concerts, sports, jeux, livres, culture, voyages, hôtels
-- sante         : pharmacie, médecin, dentiste, mutuelle, opticien, parapharmacie
-- shopping      : vêtements, électronique, Amazon, FNAC, équipement maison, cosmétiques
-- abonnements   : Netflix, Spotify, Canal+, abonnements téléphone/internet, logiciels SaaS
-- virement      : virement entre comptes personnels, remboursement entre particuliers
-- divers        : tout ce qui ne rentre pas dans les catégories ci-dessus
+- alimentation     : courses alimentaires, restaurants, cafés, livraisons de repas
+- transport        : SNCF, Uber, Lyft, carburant, parking, péages, Vélib, transports en commun
+- loisirs          : cinéma, concerts, sports, jeux, livres, culture, voyages, hôtels
+- sante            : pharmacie, médecin, dentiste, mutuelle, opticien, parapharmacie
+- shopping         : vêtements, électronique, Amazon, FNAC, équipement maison, cosmétiques
+- abonnements      : Netflix, Spotify, Canal+, abonnements téléphone/internet, logiciels SaaS
+- virement         : paiement PayPal, remboursement à un ami, virement à une tierce personne (compté comme dépense)
+- virement_interne : virement entre ses propres comptes — libellé contient LEPETIT, TINNIERE, MANON, JEREMY ou fait référence à un compte courant/épargne personnel (exclu du calcul des dépenses)
+- divers           : tout ce qui ne rentre pas dans les catégories ci-dessus
 
 Réponds UNIQUEMENT avec un tableau JSON valide, sans texte autour.
 Format : [{"transaction_id": "...", "category": "...", "confidence": 0.0}]
