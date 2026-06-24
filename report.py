@@ -79,6 +79,7 @@ def compute_stats(
         if (
             t.get("category") != "virement_interne"
             and float(t.get("amount", 0)) < 0
+            and t.get("date")
             and week_start <= date.fromisoformat(str(t["date"])[:10]) <= week_end
         )
     ]
@@ -143,6 +144,7 @@ def get_month_trend(
             if (
                 t.get("category") != "virement_interne"
                 and float(t.get("amount", 0)) < 0
+                and t.get("date")
                 and start <= date.fromisoformat(str(t["date"])[:10]) <= end
             )
         )
@@ -314,7 +316,10 @@ def generate_and_send(dry_run: bool = False) -> dict[str, str]:
         if not dry_run:
             subject = f"💸 Ta semaine du {_fmt_date(week_start)} au {_fmt_date(week_end)}"
             to      = config.REPORT_RECIPIENTS[profile]
-            send_html_email(to, subject, html)
-            log.info(f"Report sent to {to}")
+            ok = send_html_email(to, subject, html)
+            if ok:
+                log.info(f"Report sent to {to}")
+            else:
+                log.error(f"Failed to send report to {to}")
 
     return results
