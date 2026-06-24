@@ -2,7 +2,6 @@
 import csv
 import io
 import logging
-from datetime import datetime, timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI, Request, BackgroundTasks
@@ -11,6 +10,7 @@ from fastapi.templating import Jinja2Templates
 
 import config
 from ingest import run_ingest
+from report import generate_and_send
 from sheets_client import SheetsClient
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
@@ -19,41 +19,18 @@ log = logging.getLogger("main")
 app       = FastAPI(title="Finance Dashboard")
 templates = Jinja2Templates(directory="templates")
 
-# ── APScheduler : refresh quotidien à 06h00 ────────────────────────────────────
 scheduler = BackgroundScheduler()
 scheduler.add_job(run_ingest, "cron", hour=6, minute=0, id="daily_ingest")
+scheduler.add_job(generate_and_send, "cron", day_of_week="mon", hour=8, minute=0, id="weekly_report")
 scheduler.start()
 
-
-# ── Helpers ────────────────────────────────────────────────────────────────────
 
 def _get_sheets() -> SheetsClient:
     return SheetsClient(config.GOOGLE_SHEETS_ID, config.GOOGLE_SERVICE_ACCOUNT_JSON)
 
 
-def _kpis(transactions: list[dict]) -> dict:
-    now     = datetime.now()
-    curr_ym = now.strftime("%Y-%m")
-    prev_ym = (now.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
-
-    def spending(ym: str) -> float:
-        return abs(sum(float(t.get("amount", 0)) for t in transactions
-                       if t.get("date", "")[:7] == ym
-                       and float(t.get("amount", 0)) < 0
-                       and t.get("category") != "virement_interne"))
-
-    curr  = round(spending(curr_ym), 2)
-    prev  = round(spending(prev_ym), 2)
-    delta = round((curr - prev) / prev * 100, 1) if prev else 0.0
-    return {"current_month": curr, "previous_month": prev, "delta_pct": delta}
-
-
-def _sorted_desc(txs: list[dict]) -> list[dict]:
-    return sorted(txs, key=lambda t: t.get("date", ""), reverse=True)
-
-
 def _csv_response(rows: list[dict], filename: str) -> StreamingResponse:
-    fields = ["date", "label", "amount", "category", "bank", "type"]
+    fields = ["date", "label", "amount", "category", "bank", "type", "profile"]
     output = io.StringIO()
     writer = csv.DictWriter(output, fieldnames=fields, extrasaction="ignore")
     writer.writeheader()
@@ -65,25 +42,20 @@ def _csv_response(rows: list[dict], filename: str) -> StreamingResponse:
     )
 
 
-# ── Routes ─────────────────────────────────────────────────────────────────────
-
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request, profile: str = "commun"):
     if profile not in config.PROFILES:
         profile = "commun"
 
     sc           = _get_sheets()
-    transactions = _sorted_desc(sc.get_transactions(profile=profile))
+    transactions = sc.get_transactions(profile=profile)
     last_updated = sc.get_last_updated() or "—"
-    kpis         = _kpis(transactions)
 
     return templates.TemplateResponse(request, "dashboard.html", {
         "profile":      profile,
         "profiles":     {k: v["label"] for k, v in config.PROFILES.items()},
         "transactions": transactions,
         "last_updated": last_updated,
-        "kpis":         kpis,
-        "now_month":    datetime.now().strftime("%B %Y"),
     })
 
 
@@ -96,5 +68,13 @@ def api_refresh(background_tasks: BackgroundTasks):
 @app.get("/api/transactions.csv")
 def export_csv(profile: str = "commun"):
     sc  = _get_sheets()
-    txs = _sorted_desc(sc.get_transactions(profile=profile))
+    txs = sc.get_transactions(profile=profile)
     return _csv_response(txs, f"transactions_{profile}.csv")
+
+
+@app.get("/report/preview", response_class=HTMLResponse)
+def report_preview(profile: str = "jeremy"):
+    if profile not in config.REPORT_PROFILES:
+        profile = "jeremy"
+    results = generate_and_send(dry_run=True)
+    return HTMLResponse(content=results[profile])
