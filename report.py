@@ -1,4 +1,5 @@
 import base64
+import logging
 import random
 import smtplib
 from datetime import date, timedelta
@@ -10,6 +11,8 @@ from jinja2 import Environment, FileSystemLoader
 
 import config
 from sheets_client import SheetsClient
+
+log = logging.getLogger("report")
 
 CATEGORIES = [
     "alimentation", "transport", "loisirs", "sante",
@@ -242,15 +245,27 @@ def render_report(
     )
 
 
-def send_html_email(to: str, subject: str, html: str) -> None:
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"]    = config.GMAIL_SENDER
-    msg["To"]      = to
-    msg.attach(MIMEText(html, "html", "utf-8"))
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-        server.login(config.GMAIL_SENDER, config.GMAIL_APP_PASSWORD)
-        server.sendmail(config.GMAIL_SENDER, to, msg.as_string())
+def send_html_email(to: str, subject: str, html: str) -> bool:
+    """Returns True on success, False on failure."""
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"]    = config.GMAIL_SENDER
+        msg["To"]      = to
+        msg.attach(MIMEText(html, "html", "utf-8"))
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(config.GMAIL_SENDER, config.GMAIL_APP_PASSWORD)
+            server.sendmail(config.GMAIL_SENDER, to, msg.as_string())
+        return True
+    except smtplib.SMTPAuthenticationError as e:
+        log.error(f"SMTP auth failed for {to}: {e}")
+        return False
+    except smtplib.SMTPException as e:
+        log.error(f"SMTP error sending to {to}: {e}")
+        return False
+    except Exception as e:
+        log.error(f"Unexpected error sending to {to}: {e}")
+        return False
 
 
 def generate_and_send(dry_run: bool = False) -> dict[str, str]:
@@ -259,8 +274,9 @@ def generate_and_send(dry_run: bool = False) -> dict[str, str]:
     dry_run=True : retourne le HTML sans envoyer de mail (pour /report/preview).
     Retourne un dict {profile: html}.
     """
-    import logging
-    log = logging.getLogger("report")
+    if not dry_run and not config.GMAIL_APP_PASSWORD:
+        log.error("GMAIL_APP_PASSWORD not set — aborting report send")
+        return {}
 
     sc = SheetsClient(config.GOOGLE_SHEETS_ID, config.GOOGLE_SERVICE_ACCOUNT_JSON)
     all_txs = sc.get_transactions()  # tous profils
