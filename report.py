@@ -147,3 +147,96 @@ def get_month_trend(
     current  = _total(this_month_start, ref_date)
     previous = _total(prev_month_start, prev_month_same_day)
     return compute_delta(current, previous)
+
+
+def _encode_image(category: str) -> str | None:
+    path = Path(f"static/report-images/{category}.png")
+    if not path.exists():
+        return None
+    return base64.b64encode(path.read_bytes()).decode()
+
+
+def _build_comparison(
+    stats_j: dict[str, dict],
+    stats_m: dict[str, dict],
+) -> dict[str, dict]:
+    """
+    Construit le dict de comparaison pour le template.
+    Inclut uniquement les catégories où au moins un profil a dépensé.
+    """
+    all_cats = sorted(set(stats_j) | set(stats_m))
+    result = {}
+    for cat in all_cats:
+        total_j = stats_j.get(cat, {}).get("total", 0.0)
+        total_m = stats_m.get(cat, {}).get("total", 0.0)
+        max_val = max(total_j, total_m, 1)
+        meta    = CATEGORY_META.get(cat, {"label": cat, "emoji": "💰"})
+        result[cat] = {
+            "label":   meta["label"],
+            "total_j": total_j,
+            "total_m": total_m,
+            "pct_j":   round(total_j / max_val * 60),
+            "pct_m":   round(total_m / max_val * 60),
+        }
+    return result
+
+
+def render_report(
+    profile: str,
+    stats_current: dict[str, dict],
+    stats_prev: dict[str, dict],
+    stats_j: dict[str, dict],
+    stats_m: dict[str, dict],
+    week_start: date,
+    week_end: date,
+    all_transactions: list[dict],
+) -> str:
+    """Retourne le HTML du rapport pour `profile`."""
+    env = Environment(loader=FileSystemLoader("templates"), autoescape=True)
+    tmpl = env.get_template("report_email.html")
+
+    prenom     = "Jérémy" if profile == "jeremy" else "Manon"
+    roast      = random.choice(ROAST_PHRASES.get(profile, ["Bravo pour cette semaine."]))
+    week_total = sum(s["total"] for s in stats_current.values())
+
+    # Catégories avec delta vs semaine précédente
+    categories = {}
+    for cat in CATEGORIES:
+        if cat not in stats_current:
+            continue
+        current_total = stats_current[cat]["total"]
+        prev_total    = stats_prev.get(cat, {}).get("total", 0.0)
+        meta          = CATEGORY_META.get(cat, {"label": cat, "emoji": "💰"})
+        categories[cat] = {
+            "label":      meta["label"],
+            "emoji":      meta["emoji"],
+            "total":      current_total,
+            "count":      stats_current[cat]["count"],
+            "delta":      compute_delta(current_total, prev_total),
+            "highlights": stats_current[cat]["highlights"],
+            "img_b64":    _encode_image(cat),
+        }
+
+    # Comparaison
+    comparison   = _build_comparison(stats_j, stats_m)
+    winner, diff = compute_winner(stats_j, stats_m)
+    winner_prenom = "Jérémy" if winner == "jeremy" else "Manon"
+
+    # Tendance mois
+    month_trend = get_month_trend(all_transactions, week_end)
+
+    return tmpl.render(
+        prenom=prenom,
+        week_start=str(week_start),
+        week_end=str(week_end),
+        week_start_fmt=_fmt_date(week_start),
+        week_end_fmt=_fmt_date(week_end),
+        roast=roast,
+        categories=categories,
+        comparison=comparison,
+        winner=winner,
+        winner_prenom=winner_prenom,
+        winner_diff=diff,
+        week_total=week_total,
+        month_trend=month_trend,
+    )
