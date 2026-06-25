@@ -42,8 +42,10 @@ OPENROUTER_MODEL         = "google/gemini-2.5-flash-lite"
 LLM_CONFIDENCE_THRESHOLD = 0.7
 
 # ── Report Email ───────────────────────────────────────────────────────────────
-GMAIL_SENDER      = "jeremylepetit92@gmail.com"
-GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "")
+GMAIL_SENDER         = "jeremylepetit92@gmail.com"
+GMAIL_CLIENT_ID      = os.getenv("GMAIL_CLIENT_ID", "")
+GMAIL_CLIENT_SECRET  = os.getenv("GMAIL_CLIENT_SECRET", "")
+GMAIL_REFRESH_TOKEN  = os.getenv("GMAIL_REFRESH_TOKEN", "")
 REPORT_RECIPIENTS = {
     "jeremy": "jeremylepetit92@gmail.com",
     "manon":  "manon.tinniere@gmail.com",

@@ -1,12 +1,14 @@
 import base64
 import logging
 import random
-import smtplib
 from datetime import date, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
 
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
 from jinja2 import Environment, FileSystemLoader
 
 import config
@@ -255,23 +257,28 @@ def render_report(
 
 
 def send_html_email(to: str, subject: str, html: str) -> bool:
-    """Returns True on success, False on failure."""
+    """Envoie via Gmail API (OAuth). Returns True on success, False on failure."""
     try:
+        creds = Credentials(
+            token=None,
+            refresh_token=config.GMAIL_REFRESH_TOKEN,
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=config.GMAIL_CLIENT_ID,
+            client_secret=config.GMAIL_CLIENT_SECRET,
+            scopes=["https://www.googleapis.com/auth/gmail.send"],
+        )
+        creds.refresh(Request())
+        service = build("gmail", "v1", credentials=creds)
+
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
         msg["From"]    = config.GMAIL_SENDER
         msg["To"]      = to
         msg.attach(MIMEText(html, "html", "utf-8"))
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(config.GMAIL_SENDER, config.GMAIL_APP_PASSWORD)
-            server.sendmail(config.GMAIL_SENDER, to, msg.as_string())
+
+        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+        service.users().messages().send(userId="me", body={"raw": raw}).execute()
         return True
-    except smtplib.SMTPAuthenticationError as e:
-        log.error(f"SMTP auth failed for {to}: {e}")
-        return False
-    except smtplib.SMTPException as e:
-        log.error(f"SMTP error sending to {to}: {e}")
-        return False
     except Exception as e:
         log.error(f"Unexpected error sending to {to}: {e}")
         return False

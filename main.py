@@ -74,8 +74,8 @@ def export_csv(profile: str = "commun"):
 
 @app.post("/report/send")
 def report_send(background_tasks: BackgroundTasks):
-    if not config.GMAIL_APP_PASSWORD:
-        return {"ok": False, "error": "GMAIL_APP_PASSWORD non configuré"}
+    if not config.GMAIL_REFRESH_TOKEN:
+        return {"ok": False, "error": "GMAIL_REFRESH_TOKEN non configuré"}
     background_tasks.add_task(generate_and_send, current_week=True)
     return {"ok": True, "sent_to": list(config.REPORT_RECIPIENTS.values())}
 
