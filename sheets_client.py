@@ -1,4 +1,7 @@
 # sheets_client.py
+import json
+import os
+
 import gspread
 from google.oauth2.service_account import Credentials
 
@@ -14,7 +17,12 @@ HEADER = [
 
 class SheetsClient:
     def __init__(self, sheet_id: str, service_account_path: str):
-        creds = Credentials.from_service_account_file(service_account_path, scopes=SCOPES)
+        # Accepte soit un chemin de fichier, soit le contenu JSON directement
+        if os.path.exists(service_account_path):
+            creds = Credentials.from_service_account_file(service_account_path, scopes=SCOPES)
+        else:
+            info = json.loads(service_account_path)
+            creds = Credentials.from_service_account_info(info, scopes=SCOPES)
         gc = gspread.authorize(creds)
         spreadsheet = gc.open_by_key(sheet_id)
         self._txs  = spreadsheet.worksheet(TRANSACTIONS_WS)
