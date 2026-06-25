@@ -30,7 +30,7 @@ class SheetsClient:
 
     def get_existing_ids(self) -> set[str]:
         records = self._txs.get_all_records()
-        return {r["transaction_id"] for r in records if r.get("transaction_id")}
+        return {str(r["transaction_id"]) for r in records if r.get("transaction_id")}
 
     def append_rows(self, rows: list[dict]):
         if not rows:
