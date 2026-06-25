@@ -290,7 +290,7 @@ def generate_and_send(dry_run: bool = False, current_week: bool = False) -> dict
     dry_run=True : retourne le HTML sans envoyer de mail (pour /report/preview).
     Retourne un dict {profile: html}.
     """
-    if not dry_run and not config.GMAIL_APP_PASSWORD:
+    if not dry_run and not config.GMAIL_REFRESH_TOKEN:
         log.error("GMAIL_APP_PASSWORD not set — aborting report send")
         return {}
 
