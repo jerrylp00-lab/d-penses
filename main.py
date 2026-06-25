@@ -72,6 +72,18 @@ def export_csv(profile: str = "commun"):
     return _csv_response(txs, f"transactions_{profile}.csv")
 
 
+@app.post("/report/send")
+def report_send():
+    try:
+        results = generate_and_send(current_week=True)
+        if not results:
+            return {"ok": False, "error": "Génération échouée (GMAIL_APP_PASSWORD manquant ?)"}
+        return {"ok": True, "sent_to": list(config.REPORT_RECIPIENTS.values())}
+    except Exception as e:
+        log.error(f"report_send error: {e}")
+        return {"ok": False, "error": str(e)}
+
+
 @app.get("/report/preview", response_class=HTMLResponse)
 def report_preview(profile: str = "jeremy"):
     if profile not in config.REPORT_PROFILES:

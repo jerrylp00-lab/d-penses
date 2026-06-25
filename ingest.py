@@ -38,6 +38,17 @@ def _deduplicate(rows: list[dict], existing_ids: set[str]) -> list[dict]:
     return [r for r in rows if r["transaction_id"] not in existing_ids]
 
 
+def _dedup_batch(rows: list[dict]) -> list[dict]:
+    """Remove intra-batch duplicates by transaction_id (same tx returned across multiple pages)."""
+    seen: set[str] = set()
+    out: list[dict] = []
+    for r in rows:
+        if r["transaction_id"] not in seen:
+            seen.add(r["transaction_id"])
+            out.append(r)
+    return out
+
+
 def _fetch_account_transactions(client: FinaryClient, account: dict, profile: str) -> list[dict]:
     account_id = account["id"]
     bank       = account["bank"]
@@ -78,6 +89,8 @@ def run_ingest():
             new  = _deduplicate(rows, existing_ids)
             all_new_rows.extend(new)
             existing_ids.update(r["transaction_id"] for r in new)
+
+    all_new_rows = _dedup_batch(all_new_rows)
 
     if not all_new_rows:
         log.info("No new transactions.")

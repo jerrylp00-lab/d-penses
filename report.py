@@ -57,6 +57,13 @@ def get_report_week(reference: date | None = None) -> tuple[date, date]:
     return lundi_s1, dimanche_s1
 
 
+def get_current_week(reference: date | None = None) -> tuple[date, date]:
+    """Retourne (lundi, aujourd'hui) de la semaine en cours."""
+    ref = reference or date.today()
+    lundi = ref - timedelta(days=ref.weekday())
+    return lundi, ref
+
+
 def get_prev_week(week_start: date) -> tuple[date, date]:
     """Retourne (lundi, dimanche) de la semaine précédant week_start."""
     lundi_s2 = week_start - timedelta(weeks=1)
@@ -270,7 +277,7 @@ def send_html_email(to: str, subject: str, html: str) -> bool:
         return False
 
 
-def generate_and_send(dry_run: bool = False) -> dict[str, str]:
+def generate_and_send(dry_run: bool = False, current_week: bool = False) -> dict[str, str]:
     """
     Génère et envoie les rapports pour jeremy et manon.
     dry_run=True : retourne le HTML sans envoyer de mail (pour /report/preview).
@@ -283,7 +290,7 @@ def generate_and_send(dry_run: bool = False) -> dict[str, str]:
     sc = SheetsClient(config.GOOGLE_SHEETS_ID, config.GOOGLE_SERVICE_ACCOUNT_JSON)
     all_txs = sc.get_transactions()  # tous profils
 
-    week_start, week_end   = get_report_week()
+    week_start, week_end   = get_current_week() if current_week else get_report_week()
     prev_start, prev_end   = get_prev_week(week_start)
 
     # Stats par profil pour les deux semaines

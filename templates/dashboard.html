@@ -14,11 +14,17 @@
     <h1 class="text-2xl font-bold">Finance Dashboard</h1>
     <p class="text-xs text-gray-400">Dernière mise à jour : {{ last_updated }}</p>
   </div>
-  <button id="refresh-btn"
-          onclick="triggerRefresh()"
-          class="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm hover:bg-gray-700 transition">
-    ⟳ Rafraîchir
-  </button>
+  <div class="flex gap-2 items-center">
+    <button id="refresh-btn" onclick="triggerRefresh()"
+            class="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm hover:bg-gray-700 transition">
+      ⟳ Rafraîchir
+    </button>
+    <button id="send-report-btn" onclick="sendReport()"
+            class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-500 transition">
+      📧 Envoyer le rapport
+    </button>
+    <span id="send-report-status" class="text-xs text-gray-500 hidden"></span>
+  </div>
 </div>
 
 <!-- Profile tabs -->
@@ -33,71 +39,332 @@
 </div>
 
 <!-- KPIs -->
-<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-  <div class="bg-white rounded-xl p-5 shadow-sm">
-    <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Ce mois</p>
-    <p class="text-3xl font-extrabold text-red-600">{{ "%.0f"|format(kpis.current_month) }} €</p>
-    <p class="text-xs text-gray-400 mt-1">dépenses {{ now_month }}</p>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+  <div id="card-CA"
+       onclick="toggleBankFilter('CA')"
+       class="bg-white rounded-xl p-5 shadow-sm cursor-pointer hover:shadow-md transition select-none group">
+    <div class="flex justify-between items-start">
+      <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Crédit Agricole</p>
+      <span class="text-xs text-gray-300 group-hover:text-gray-500 transition">voir détail →</span>
+    </div>
+    <p id="kpi-ca" class="text-3xl font-extrabold text-red-600">—</p>
+    <p id="kpi-ca-sub" class="text-xs text-gray-400 mt-1">— dépenses</p>
   </div>
-  <div class="bg-white rounded-xl p-5 shadow-sm">
-    <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Mois précédent</p>
-    <p class="text-3xl font-extrabold">{{ "%.0f"|format(kpis.previous_month) }} €</p>
+  <div id="card-Bourso"
+       onclick="toggleBankFilter('Bourso')"
+       class="bg-white rounded-xl p-5 shadow-sm cursor-pointer hover:shadow-md transition select-none group">
+    <div class="flex justify-between items-start">
+      <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Boursorama</p>
+      <span class="text-xs text-gray-300 group-hover:text-gray-500 transition">voir détail →</span>
+    </div>
+    <p id="kpi-bourso" class="text-3xl font-extrabold text-red-600">—</p>
+    <p id="kpi-bourso-sub" class="text-xs text-gray-400 mt-1">— dépenses</p>
   </div>
-  <div class="bg-white rounded-xl p-5 shadow-sm">
-    <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Évolution</p>
-    <p class="text-3xl font-extrabold
-              {% if kpis.delta_pct > 0 %}text-red-600{% else %}text-green-600{% endif %}">
-      {% if kpis.delta_pct > 0 %}+{% endif %}{{ "%.1f"|format(kpis.delta_pct) }} %
+  <div id="card-total"
+       onclick="toggleBankFilter('total')"
+       class="bg-white rounded-xl p-5 shadow-sm cursor-pointer hover:shadow-md transition select-none group">
+    <div class="flex justify-between items-start">
+      <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Total</p>
+      <span class="text-xs text-gray-300 group-hover:text-gray-500 transition">voir détail →</span>
+    </div>
+    <p id="kpi-total" class="text-3xl font-extrabold text-gray-900">—</p>
+    <p id="kpi-total-sub" class="text-xs text-gray-400 mt-1">— dépenses</p>
+  </div>
+</div>
+
+<!-- Filters bar -->
+<div class="bg-white rounded-xl shadow-sm px-5 py-4 mb-4 flex flex-wrap gap-4 items-center">
+  <div class="flex items-center gap-2 flex-shrink-0">
+    <label class="text-xs text-gray-500 font-medium">Du</label>
+    <input type="date" id="from-date" onchange="render()"
+           class="text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-gray-400">
+    <label class="text-xs text-gray-500 font-medium">Au</label>
+    <input type="date" id="to-date" onchange="render()"
+           class="text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-gray-400">
+    <button onclick="resetDates()" class="text-xs text-gray-400 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100 transition">Ce mois</button>
+    <button onclick="clearDates()" class="text-xs text-gray-400 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100 transition">Tout</button>
+  </div>
+  <input type="text" id="search" oninput="render()" placeholder="🔍 Rechercher libellé, catégorie, banque…"
+         class="flex-1 min-w-52 text-sm border border-gray-200 rounded px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-gray-400">
+  <span id="tx-count" class="text-xs text-gray-400 flex-shrink-0"></span>
+  <a href="/api/transactions.csv?profile={{ profile }}"
+     class="text-xs text-gray-500 hover:text-gray-800 underline flex-shrink-0">CSV</a>
+</div>
+
+<!-- Bank filter summary banner (visible when a KPI card is active) -->
+<div id="bank-banner" class="hidden bg-white rounded-xl shadow-sm px-5 py-3 mb-4 border-l-4 border-gray-900">
+  <div class="flex justify-between items-start">
+    <div>
+      <p id="banner-title" class="text-sm font-semibold text-gray-800 mb-1"></p>
+      <p id="banner-formula" class="text-xs font-mono text-gray-500"></p>
+      <div id="banner-rows" class="mt-2 flex flex-wrap gap-3"></div>
+    </div>
+    <button onclick="clearBankFilter()" class="text-gray-400 hover:text-gray-700 text-xl leading-none ml-4 flex-shrink-0">×</button>
+  </div>
+</div>
+
+<!-- Transactions table -->
+<div class="bg-white rounded-xl shadow-sm overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 text-xs text-gray-400 uppercase tracking-wide select-none">
+        <tr>
+          <th class="text-left px-4 py-3 cursor-pointer hover:text-gray-700 whitespace-nowrap"
+              onclick="toggleSort('date')">Date <span id="sort-date"></span></th>
+          <th class="text-left px-4 py-3 cursor-pointer hover:text-gray-700"
+              onclick="toggleSort('label')">Libellé <span id="sort-label"></span></th>
+          <th class="text-left px-4 py-3 cursor-pointer hover:text-gray-700 whitespace-nowrap"
+              onclick="toggleSort('category')">Catégorie <span id="sort-category"></span></th>
+          <th class="text-left px-4 py-3 cursor-pointer hover:text-gray-700 whitespace-nowrap"
+              onclick="toggleSort('bank')">Banque <span id="sort-bank"></span></th>
+          <th id="col-profile-hdr"
+              class="text-left px-4 py-3 cursor-pointer hover:text-gray-700 whitespace-nowrap hidden"
+              onclick="toggleSort('profile')">Profil <span id="sort-profile"></span></th>
+          <th class="text-center px-3 py-3 whitespace-nowrap text-gray-400" title="Comptabilisé dans le KPI ?">KPI</th>
+          <th class="text-right px-4 py-3 cursor-pointer hover:text-gray-700 whitespace-nowrap"
+              onclick="toggleSort('amount')">Montant <span id="sort-amount"></span></th>
+        </tr>
+      </thead>
+      <tbody id="tbody" class="divide-y divide-gray-50"></tbody>
+    </table>
+    <p id="empty-msg" class="hidden px-5 py-8 text-center text-gray-400 text-sm">
+      Aucune transaction pour cette période.
     </p>
   </div>
 </div>
 
-<!-- Transactions -->
-<div class="bg-white rounded-xl shadow-sm overflow-hidden">
-  <div class="px-5 py-4 border-b border-gray-100 flex justify-between items-center">
-    <h2 class="font-semibold">Transactions</h2>
-    <a href="/api/transactions.csv?profile={{ profile }}"
-       class="text-xs text-gray-500 hover:text-gray-800 underline">
-      Exporter CSV
-    </a>
-  </div>
-
-  {% if transactions %}
-  <div class="overflow-x-auto">
-    <table class="w-full text-sm">
-      <thead class="bg-gray-50 text-xs text-gray-400 uppercase tracking-wide">
-        <tr>
-          <th class="text-left px-5 py-3">Date</th>
-          <th class="text-left px-5 py-3">Libellé</th>
-          <th class="text-left px-5 py-3">Catégorie</th>
-          <th class="text-left px-5 py-3">Banque</th>
-          <th class="text-right px-5 py-3">Montant</th>
-        </tr>
-      </thead>
-      <tbody class="divide-y divide-gray-50">
-        {% for t in transactions %}
-        <tr class="hover:bg-gray-50 transition">
-          <td class="px-5 py-3 whitespace-nowrap text-gray-500">{{ t.date }}</td>
-          <td class="px-5 py-3 truncate max-w-xs">{{ t.label }}</td>
-          <td class="px-5 py-3">
-            <span class="text-xs bg-gray-100 rounded px-2 py-0.5">{{ t.category }}</span>
-          </td>
-          <td class="px-5 py-3 text-gray-400 text-xs">{{ t.bank }}</td>
-          <td class="px-5 py-3 text-right font-medium
-                     {% if t.amount|float < 0 %}text-red-600{% else %}text-green-600{% endif %}">
-            {{ "%.2f"|format(t.amount|float) }} €
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% else %}
-  <p class="px-5 py-8 text-center text-gray-400 text-sm">Aucune transaction. Cliquez sur Rafraîchir.</p>
-  {% endif %}
-</div>
-
 <script>
+const ALL_TXS  = {{ transactions | tojson }};
+const PROFILE  = "{{ profile }}";
+const SHOW_PROFILE_COL = (PROFILE === 'commun');
+
+let sortCol    = 'date';
+let sortDir    = -1;
+let bankFilter = null; // 'CA' | 'Bourso' | 'total' | null
+
+// ─── Category styling ──────────────────────────────────────────────────────────
+const CAT_COLORS = {
+  alimentation:    'bg-green-100 text-green-700',
+  transport:       'bg-blue-100 text-blue-700',
+  loisirs:         'bg-purple-100 text-purple-700',
+  sante:           'bg-teal-100 text-teal-700',
+  shopping:        'bg-yellow-100 text-yellow-700',
+  abonnements:     'bg-orange-100 text-orange-700',
+  virement:        'bg-gray-200 text-gray-600',
+  virement_interne:'bg-gray-100 text-gray-400',
+  divers:          'bg-gray-100 text-gray-500',
+};
+const PROFILE_COLORS = {
+  jeremy:'bg-blue-50 text-blue-700',
+  manon: 'bg-pink-50 text-pink-700',
+  commun:'bg-gray-100 text-gray-600',
+};
+
+// ─── Date helpers (no timezone issue) ─────────────────────────────────────────
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function firstOfMonthStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-01';
+}
+function resetDates() { document.getElementById('from-date').value = firstOfMonthStr(); document.getElementById('to-date').value = todayStr(); render(); }
+function clearDates()  { document.getElementById('from-date').value = ''; document.getElementById('to-date').value = ''; render(); }
+
+document.getElementById('from-date').value = firstOfMonthStr();
+document.getElementById('to-date').value   = todayStr();
+
+// ─── Filtering ─────────────────────────────────────────────────────────────────
+// getFiltered: applies date + text search (NOT bankFilter — table always applies bankFilter separately)
+function getFiltered() {
+  const search = document.getElementById('search').value.toLowerCase().trim();
+  const from   = document.getElementById('from-date').value;
+  const to     = document.getElementById('to-date').value;
+  return ALL_TXS.filter(t => {
+    if (from && t.date < from) return false;
+    if (to   && t.date > to)   return false;
+    if (search) {
+      const hay = [t.label, t.category, t.bank, t.profile||''].join(' ').toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    return true;
+  });
+}
+
+function applyBankFilter(txs) {
+  if (!bankFilter || bankFilter === 'total') return txs;
+  return txs.filter(t => t.bank === bankFilter);
+}
+
+function isKpiCounted(t) {
+  return parseFloat(t.amount) < 0 && t.category !== 'virement_interne';
+}
+
+// ─── KPI computation ───────────────────────────────────────────────────────────
+function computeKPIs(txs) {
+  let ca = 0, bourso = 0, ca_n = 0, bourso_n = 0;
+  for (const t of txs) {
+    if (!isKpiCounted(t)) continue;
+    const abs = Math.abs(parseFloat(t.amount));
+    if (t.bank === 'CA')     { ca     += abs; ca_n++; }
+    if (t.bank === 'Bourso') { bourso += abs; bourso_n++; }
+  }
+  return { ca, bourso, total: ca+bourso, ca_n, bourso_n, total_n: ca_n+bourso_n };
+}
+
+// Stats for the banner — called on bankTxs (already bank-filtered + date-filtered)
+function computeBankStats(txs) {
+  let kpi_sum = 0, kpi_n = 0;
+  let vi_sum = 0,  vi_n = 0;
+  let credit_sum = 0, credit_n = 0;
+  for (const t of txs) {
+    const amt = parseFloat(t.amount);
+    if (amt < 0 && t.category === 'virement_interne') { vi_sum += Math.abs(amt); vi_n++; }
+    else if (amt < 0) { kpi_sum += Math.abs(amt); kpi_n++; }
+    else              { credit_sum += amt; credit_n++; }
+  }
+  return { kpi_sum, kpi_n, vi_sum, vi_n, credit_sum, credit_n, total_n: txs.length };
+}
+
+// ─── Formatting ────────────────────────────────────────────────────────────────
+function fmt(n)  { return Math.round(n).toLocaleString('fr-FR') + ' €'; }
+function fmtF(n) { return n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' €'; }
+function esc(s)  { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ─── Bank filter + banner ──────────────────────────────────────────────────────
+function toggleBankFilter(bank) {
+  bankFilter = (bankFilter === bank) ? null : bank;
+  ['CA','Bourso','total'].forEach(b => {
+    const c = document.getElementById('card-' + b);
+    if (!c) return;
+    const active = b === bankFilter;
+    c.classList.toggle('ring-2', active);
+    c.classList.toggle('ring-gray-800', active);
+    c.classList.toggle('shadow-md', active);
+  });
+  render();
+}
+function clearBankFilter() {
+  bankFilter = null;
+  ['CA','Bourso','total'].forEach(b => {
+    const c = document.getElementById('card-' + b);
+    if (c) c.classList.remove('ring-2','ring-gray-800','shadow-md');
+  });
+  render();
+}
+
+function renderBanner(bankTxs) {
+  const banner = document.getElementById('bank-banner');
+  if (!bankFilter) { banner.classList.add('hidden'); return; }
+
+  const label = bankFilter === 'CA' ? 'Crédit Agricole' : bankFilter === 'Bourso' ? 'Boursorama' : 'Toutes banques';
+  const s = computeBankStats(bankTxs);
+
+  document.getElementById('banner-title').textContent =
+    label + ' — ' + s.total_n + ' transactions dans la période';
+
+  // Formula: total_n = kpi_n + vi_n + credit_n
+  document.getElementById('banner-formula').textContent =
+    s.total_n + ' tx = ' + s.kpi_n + ' dépenses (' + fmtF(s.kpi_sum) + ') + ' +
+    s.vi_n + ' virt. internes (' + fmtF(s.vi_sum) + ') + ' +
+    s.credit_n + ' crédits (+' + fmtF(s.credit_sum) + ')';
+
+  const rows = document.getElementById('banner-rows');
+  rows.innerHTML = [
+    { label: '✓ KPI  ' + fmt(s.kpi_sum), sub: s.kpi_n + ' tx comptabilisées', cls: 'bg-red-50 border border-red-200 text-red-700' },
+    { label: '⊘ Virt. internes  ' + fmt(s.vi_sum), sub: s.vi_n + ' tx exclues', cls: 'bg-gray-100 border border-gray-200 text-gray-500' },
+    { label: '⊘ Crédits  +' + fmt(s.credit_sum), sub: s.credit_n + ' tx exclues', cls: 'bg-blue-50 border border-blue-200 text-blue-500' },
+  ].map(r => `<div class="rounded-lg px-3 py-2 ${r.cls}">
+    <p class="text-xs font-semibold">${r.label}</p>
+    <p class="text-xs opacity-70">${r.sub}</p>
+  </div>`).join('');
+
+  banner.classList.remove('hidden');
+}
+
+// ─── Sort ──────────────────────────────────────────────────────────────────────
+function getSorted(txs) {
+  return [...txs].sort((a,b) => {
+    let va = a[sortCol]??'', vb = b[sortCol]??'';
+    if (sortCol === 'amount') { va = parseFloat(va); vb = parseFloat(vb); }
+    if (va < vb) return -sortDir;
+    if (va > vb) return  sortDir;
+    return 0;
+  });
+}
+function toggleSort(col) { sortDir = (col===sortCol) ? -sortDir : -1; sortCol = col; render(); }
+function updateSortIndicators() {
+  for (const c of ['date','label','category','bank','profile','amount']) {
+    const el = document.getElementById('sort-'+c);
+    if (el) el.textContent = c===sortCol ? (sortDir===1?' ↑':' ↓') : '';
+  }
+}
+
+// ─── Main render ───────────────────────────────────────────────────────────────
+function render() {
+  const filtered  = getFiltered();                  // date + text filtered
+  const bankTxs   = applyBankFilter(filtered);      // additionally bank-filtered
+  const sorted    = getSorted(bankTxs);
+  const kpis      = computeKPIs(filtered);          // always over full filtered set for KPI cards
+
+  // KPI cards (always show full-period numbers, not bank-filtered)
+  document.getElementById('kpi-ca').textContent       = fmt(kpis.ca);
+  document.getElementById('kpi-ca-sub').textContent   = kpis.ca_n + ' tx comptabilisées';
+  document.getElementById('kpi-bourso').textContent   = fmt(kpis.bourso);
+  document.getElementById('kpi-bourso-sub').textContent = kpis.bourso_n + ' tx comptabilisées';
+  document.getElementById('kpi-total').textContent    = fmt(kpis.total);
+  document.getElementById('kpi-total-sub').textContent = kpis.total_n + ' tx comptabilisées';
+
+  // Banner
+  renderBanner(bankTxs);
+
+  // Transaction count (bank-filtered)
+  document.getElementById('tx-count').textContent =
+    sorted.length + ' transaction' + (sorted.length!==1?'s':'') +
+    (bankFilter && bankFilter!=='total' ? ' · filtre '+bankFilter : '');
+
+  document.getElementById('col-profile-hdr').classList.toggle('hidden', !SHOW_PROFILE_COL);
+  updateSortIndicators();
+
+  const tbody = document.getElementById('tbody');
+  const empty = document.getElementById('empty-msg');
+
+  if (sorted.length === 0) { tbody.innerHTML = ''; empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+
+  tbody.innerHTML = sorted.map(t => {
+    const amt     = parseFloat(t.amount);
+    const counted = isKpiCounted(t);
+    const isVI    = t.category === 'virement_interne';
+    const isCredit= amt >= 0;
+
+    const rowOp  = (isVI || isCredit) ? 'opacity-50' : '';
+    const amtCls = isCredit ? 'text-green-600' : (counted ? 'text-red-600' : 'text-gray-400');
+    const catCls = CAT_COLORS[t.category] || 'bg-gray-100 text-gray-500';
+    const pfCls  = PROFILE_COLORS[t.profile] || 'bg-gray-100 text-gray-600';
+    const pfCell = SHOW_PROFILE_COL
+      ? `<td class="px-4 py-2.5"><span class="text-xs rounded px-2 py-0.5 ${pfCls}">${esc(t.profile)}</span></td>`
+      : '';
+
+    let kpiCell;
+    if (counted)  kpiCell = '<span class="text-green-500 text-sm" title="Comptabilisé dans le KPI">✓</span>';
+    else if (isVI) kpiCell = '<span class="text-gray-300 text-sm" title="Exclu — virement interne">⊘</span>';
+    else if (isCredit) kpiCell = '<span class="text-blue-300 text-sm" title="Exclu — crédit/remboursement">+</span>';
+    else kpiCell = '<span class="text-gray-300 text-sm">—</span>';
+
+    return `<tr class="hover:bg-gray-50 transition ${rowOp}">
+      <td class="px-4 py-2.5 whitespace-nowrap text-gray-500 text-xs">${esc(t.date)}</td>
+      <td class="px-4 py-2.5 max-w-xs"><span class="block truncate" title="${esc(t.label)}">${esc(t.label)}</span></td>
+      <td class="px-4 py-2.5 whitespace-nowrap"><span class="text-xs rounded px-2 py-0.5 ${catCls}">${esc(t.category)}</span></td>
+      <td class="px-4 py-2.5 text-gray-400 text-xs whitespace-nowrap">${esc(t.bank)}</td>
+      ${pfCell}
+      <td class="px-3 py-2.5 text-center">${kpiCell}</td>
+      <td class="px-4 py-2.5 text-right font-medium whitespace-nowrap ${amtCls}">${amt.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})} €</td>
+    </tr>`;
+  }).join('');
+}
+
 async function triggerRefresh() {
   const btn = document.getElementById('refresh-btn');
   btn.textContent = '⏳ En cours…';
@@ -110,7 +377,36 @@ async function triggerRefresh() {
     btn.disabled = false;
   }
 }
-</script>
 
+async function sendReport() {
+  const btn = document.getElementById('send-report-btn');
+  const status = document.getElementById('send-report-status');
+  btn.textContent = '⏳ Envoi…';
+  btn.disabled = true;
+  status.classList.add('hidden');
+  try {
+    const res = await fetch('/report/send', { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) {
+      btn.textContent = '✓ Envoyé';
+      status.textContent = `→ ${data.sent_to.join(', ')}`;
+    } else {
+      btn.textContent = '✗ Erreur';
+      status.textContent = data.error || 'Échec';
+    }
+    status.classList.remove('hidden');
+    setTimeout(() => {
+      btn.textContent = '📧 Envoyer le rapport';
+      btn.disabled = false;
+      status.classList.add('hidden');
+    }, 5000);
+  } catch {
+    btn.textContent = '📧 Envoyer le rapport';
+    btn.disabled = false;
+  }
+}
+
+render();
+</script>
 </body>
 </html>
