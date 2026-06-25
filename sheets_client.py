@@ -45,16 +45,16 @@ class SheetsClient:
         return records
 
     def get_last_updated(self) -> str | None:
-        records = self._meta.get_all_records()
-        for r in records:
-            if r.get("key") == "last_updated":
-                return r.get("value") or None
+        rows = self._meta.get_all_values()
+        for row in rows:
+            if len(row) >= 2 and row[0] == "last_updated":
+                return row[1] or None
         return None
 
     def set_last_updated(self, iso_dt: str):
-        records = self._meta.get_all_records()
-        for i, r in enumerate(records):
-            if r.get("key") == "last_updated":
-                self._meta.update_cell(i + 2, 2, iso_dt)
+        rows = self._meta.get_all_values()
+        for i, row in enumerate(rows):
+            if row and row[0] == "last_updated":
+                self._meta.update_cell(i + 1, 2, iso_dt)
                 return
         self._meta.append_row(["last_updated", iso_dt])
