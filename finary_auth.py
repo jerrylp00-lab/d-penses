@@ -62,6 +62,12 @@ def _load_session() -> Optional[dict]:
                 return json.load(f)
         except Exception:
             pass
+    env_session = os.environ.get("FINARY_SESSION", "")
+    if env_session:
+        try:
+            return json.loads(env_session)
+        except Exception:
+            pass
     return None
 
 
