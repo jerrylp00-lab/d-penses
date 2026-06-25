@@ -2,6 +2,8 @@ import base64
 import logging
 import random
 from datetime import date, timedelta
+
+from llm_categorizer import extract_merchant_names
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
@@ -193,6 +195,37 @@ def _build_comparison(
             "pct_m":   round(total_m / max_val * 60),
         }
     return result
+
+
+def get_week_merchant_phrase(transactions: list[dict]) -> str:
+    """
+    Trouve le marchand avec le plus de dépenses cette semaine.
+    Retourne une phrase fun. Utilise LLM pour nettoyer les libellés.
+    """
+    week_start, week_end = get_current_week()
+    week_txs = [
+        t for t in transactions
+        if (
+            t.get("category") not in ("virement_interne", "virement")
+            and float(t.get("amount", 0)) < 0
+            and t.get("date")
+            and week_start <= date.fromisoformat(str(t["date"])[:10]) <= week_end
+        )
+    ]
+    if not week_txs:
+        return "Aucune dépense cette semaine. 🎉"
+
+    unique_labels = list({t["label"] for t in week_txs})
+    merchant_map = extract_merchant_names(unique_labels)
+
+    by_merchant: dict[str, float] = {}
+    for t in week_txs:
+        merchant = merchant_map.get(t["label"], t["label"])
+        by_merchant[merchant] = by_merchant.get(merchant, 0) + abs(float(t["amount"]))
+
+    top = max(by_merchant, key=lambda k: by_merchant[k])
+    total = by_merchant[top]
+    return f"Tu as bien fait vivre {top} cette semaine avec {total:.0f} € de dépenses chez eux 🏆"
 
 
 def render_report(

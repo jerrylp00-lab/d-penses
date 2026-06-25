@@ -24,8 +24,39 @@ Format : [{"transaction_id": "...", "category": "...", "confidence": 0.0}]
 confidence entre 0.0 et 1.0."""
 
 
+# Libellés qui indiquent sans ambiguïté un virement entre comptes propres.
+# Patterns intentionnellement précis — les noms seuls (LEPETIT, TINNIERE) peuvent
+# apparaître dans des libellés tiers (factures EDF, remboursements prêt, notaires).
+_VIREMENT_INTERNE_PATTERNS = [
+    "ALIMENTATION DU COMPTE",       # "Alimentation du compte courant M LEPETIT..."
+    "VIREMENT AUTOMATIQUE M LEPETIT",
+    "VIREMENT AUTOMATIQUE TINNIERE",
+    "VIR INST VERS JEREMY LEPETIT",
+    "VIR INST VERS MANON TINNIERE",
+    "VIR INST DE MANON TINNIERE",
+    "VIR INST DE JEREMY LEPETIT",
+    "VIREMENT DEPUIS BOURSOBANK M LEPETIT J OU MME TINNIERE",
+    "INST M. LEPETIT JEREMY",
+    "INST MADAME TINNIERE MANON",
+    "INST MONSIEUR LEPETIT JEREMY",
+    "INST MANON TINNIERE",
+    "WEB MADAME TINNIERE MANON",
+    "WEB MANON TINNIERE",
+    "DE MONSIEUR LEPETIT JEREMY",
+    "DE MADAME TINNIERE MANON",
+    "M LEPETIT J OU MME TINNIERE",   # libellé virement joint
+]
+
+
 def _preprocess(transactions: list[dict]) -> tuple[list[dict], list[dict]]:
-    return [], transactions
+    pre, to_llm = [], []
+    for tx in transactions:
+        upper = tx.get("label", "").upper()
+        if any(p in upper for p in _VIREMENT_INTERNE_PATTERNS):
+            pre.append({"transaction_id": tx["transaction_id"], "category": "virement_interne", "confidence": 1.0})
+        else:
+            to_llm.append(tx)
+    return pre, to_llm
 
 
 def _build_prompt(transactions: list[dict]) -> str:
@@ -56,6 +87,58 @@ def _fallback(transactions: list[dict]) -> list[dict]:
         {"transaction_id": t["transaction_id"], "category": "divers", "confidence": 0.0}
         for t in transactions
     ]
+
+
+def extract_merchant_names(labels: list[str]) -> dict[str, str]:
+    """
+    Envoie des libellés bancaires bruts au LLM.
+    Retourne {label_brut: nom_marchand_lisible}.
+    """
+    if not labels:
+        return {}
+
+    items = "\n".join(f"- {lb}" for lb in labels)
+    prompt = (
+        "Tu es un assistant bancaire français. Voici des libellés bruts de transactions "
+        "(format CB/RIB/virement). Pour chaque libellé, retourne le nom du marchand ou "
+        "établissement réel (restaurant, café, magasin, service…). "
+        "Si impossible à identifier, retourne une version courte et lisible du libellé.\n\n"
+        "Réponds UNIQUEMENT avec un objet JSON valide, sans texte autour.\n"
+        'Format : {"libellé_brut": "Nom Marchand", ...}\n\n'
+        f"Libellés :\n{items}"
+    )
+
+    headers = {
+        "Authorization": f"Bearer {config.OPENROUTER_API_KEY}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://finance-dashboard.local",
+        "X-Title": "Personal Finance Dashboard",
+    }
+    payload = {
+        "model": config.OPENROUTER_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.1,
+    }
+
+    try:
+        resp = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=30,
+        )
+        raw = resp.json()["choices"][0]["message"]["content"].strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        result = json.loads(raw)
+        if isinstance(result, dict):
+            return result
+    except Exception as e:
+        log.error(f"extract_merchant_names failed: {e}")
+
+    return {lb: lb for lb in labels}
 
 
 def categorize_transactions(transactions: list[dict]) -> list[dict]:
