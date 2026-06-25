@@ -48,6 +48,14 @@
   .trend-up { color: #dc2626; }
   .trend-down { color: #16a34a; }
   .trend-none { color: #888; }
+  .tx-list-card { background: #fff; border: 1px solid #e5e5e5; border-radius: 12px; padding: 16px; }
+  .tx-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid #f5f5f5; }
+  .tx-row:last-of-type { border-bottom: none; }
+  .tx-date { color: #bbb; width: 36px; flex-shrink: 0; font-size: 11px; }
+  .tx-label { flex: 1; color: #333; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tx-amount { color: #dc2626; font-weight: 600; font-size: 13px; white-space: nowrap; }
+  .tx-total-row { display: flex; justify-content: space-between; padding-top: 10px; margin-top: 6px; border-top: 1px solid #e5e5e5; font-size: 14px; font-weight: 700; color: #111; }
+  .tx-phrase { font-size: 13px; color: #555; font-style: italic; margin-top: 12px; padding-top: 12px; border-top: 1px solid #f0f0f0; }
 </style>
 </head>
 <body>
@@ -59,6 +67,26 @@
     <div class="header-name">La semaine de {{ prenom }} 💸</div>
     <div class="header-dates">{{ week_start_fmt }} – {{ week_end_fmt }}</div>
     <div class="roast">{{ roast }}</div>
+  </div>
+
+  <!-- TRANSACTIONS DE LA SEMAINE -->
+  <div class="section-label">Transactions de la semaine</div>
+  <div class="tx-list-card">
+    {% for tx in week_txs %}
+    <div class="tx-row">
+      <div class="tx-date">{{ tx.date_fmt }}</div>
+      <div class="tx-label">{{ tx.label[:40] }}{% if tx.label|length > 40 %}…{% endif %}</div>
+      <div class="tx-amount">{{ "%.0f"|format(tx.amount_abs) }} €</div>
+    </div>
+    {% endfor %}
+    {% if not week_txs %}
+    <div style="color:#999;font-size:13px;padding:8px 0;">Aucune dépense cette semaine.</div>
+    {% endif %}
+    <div class="tx-total-row">
+      <span>Total</span>
+      <span>{{ "%.0f"|format(week_total) }} €</span>
+    </div>
+    <div class="tx-phrase">{{ week_phrase }}</div>
   </div>
 
   <!-- CATÉGORIES -->

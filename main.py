@@ -2,7 +2,6 @@
 import csv
 import io
 import logging
-from datetime import date
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI, Request, BackgroundTasks
@@ -11,14 +10,13 @@ from fastapi.templating import Jinja2Templates
 
 import config
 from ingest import run_ingest
-from report import generate_and_send, get_week_merchant_phrase
+from report import generate_and_send
 from sheets_client import SheetsClient
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 log = logging.getLogger("main")
 
 app       = FastAPI(title="Finance Dashboard")
-_phrase_cache: dict[str, dict] = {}  # {profile: {date: str, phrase: str}}
 templates = Jinja2Templates(directory="templates")
 
 scheduler = BackgroundScheduler()
@@ -80,19 +78,6 @@ def report_send(background_tasks: BackgroundTasks):
         return {"ok": False, "error": "GMAIL_REFRESH_TOKEN non configuré"}
     background_tasks.add_task(generate_and_send, current_week=True)
     return {"ok": True, "sent_to": list(config.REPORT_RECIPIENTS.values())}
-
-
-@app.get("/api/week-phrase")
-def week_phrase(profile: str = "commun"):
-    today = str(date.today())
-    cached = _phrase_cache.get(profile)
-    if cached and cached["date"] == today:
-        return {"phrase": cached["phrase"]}
-    sc = _get_sheets()
-    txs = sc.get_transactions(profile=profile)
-    phrase = get_week_merchant_phrase(txs)
-    _phrase_cache[profile] = {"date": today, "phrase": phrase}
-    return {"phrase": phrase}
 
 
 @app.get("/report/preview", response_class=HTMLResponse)

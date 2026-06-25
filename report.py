@@ -197,13 +197,12 @@ def _build_comparison(
     return result
 
 
-def get_week_merchant_phrase(transactions: list[dict]) -> str:
+def get_week_merchant_phrase(transactions: list[dict], week_start: date, week_end: date) -> str:
     """
-    Trouve le marchand avec le plus de dépenses cette semaine.
-    Retourne une phrase fun. Utilise LLM pour nettoyer les libellés.
+    Trouve le marchand avec le plus de dépenses sur la période.
+    Utilise LLM pour nettoyer les libellés bruts.
     """
-    week_start, week_end = get_current_week()
-    week_txs = [
+    filtered = [
         t for t in transactions
         if (
             t.get("category") not in ("virement_interne", "virement")
@@ -212,14 +211,14 @@ def get_week_merchant_phrase(transactions: list[dict]) -> str:
             and week_start <= date.fromisoformat(str(t["date"])[:10]) <= week_end
         )
     ]
-    if not week_txs:
+    if not filtered:
         return "Aucune dépense cette semaine. 🎉"
 
-    unique_labels = list({t["label"] for t in week_txs})
+    unique_labels = list({t["label"] for t in filtered})
     merchant_map = extract_merchant_names(unique_labels)
 
     by_merchant: dict[str, float] = {}
-    for t in week_txs:
+    for t in filtered:
         merchant = merchant_map.get(t["label"], t["label"])
         by_merchant[merchant] = by_merchant.get(merchant, 0) + abs(float(t["amount"]))
 
@@ -272,6 +271,25 @@ def render_report(
     # Tendance mois
     month_trend = get_month_trend(all_transactions, week_end)
 
+    # Transactions de la semaine (triées par montant desc)
+    week_txs_filtered = sorted(
+        [
+            t for t in all_transactions
+            if (
+                t.get("category") not in ("virement_interne", "virement")
+                and float(t.get("amount", 0)) < 0
+                and t.get("date")
+                and week_start <= date.fromisoformat(str(t["date"])[:10]) <= week_end
+            )
+        ],
+        key=lambda t: float(t["amount"]),
+    )
+    week_txs = [
+        {**t, "amount_abs": abs(float(t["amount"])), "date_fmt": t["date"][5:].replace("-", "/")}
+        for t in week_txs_filtered
+    ]
+    week_phrase = get_week_merchant_phrase(all_transactions, week_start, week_end)
+
     return tmpl.render(
         prenom=prenom,
         week_start=str(week_start),
@@ -286,6 +304,8 @@ def render_report(
         winner_diff=diff,
         week_total=week_total,
         month_trend=month_trend,
+        week_txs=week_txs,
+        week_phrase=week_phrase,
     )
 
 

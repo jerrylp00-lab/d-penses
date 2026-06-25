@@ -72,19 +72,6 @@
   </div>
 </div>
 
-<!-- Cette semaine -->
-<div class="bg-white rounded-xl shadow-sm p-5 mb-4">
-  <div class="flex justify-between items-start mb-3">
-    <div>
-      <p class="text-xs text-gray-500 uppercase tracking-wide font-medium">Cette semaine</p>
-      <p id="week-dates" class="text-xs text-gray-400 mt-0.5"></p>
-    </div>
-    <p id="week-total" class="text-2xl font-extrabold text-gray-900">—</p>
-  </div>
-  <div id="week-txs" class="divide-y divide-gray-50"></div>
-  <p id="week-phrase" class="text-sm text-gray-400 italic border-t border-gray-50 pt-3 mt-3">Chargement…</p>
-</div>
-
 <!-- Filters bar -->
 <div class="bg-white rounded-xl shadow-sm px-5 py-4 mb-4 flex flex-wrap gap-4 items-center">
   <div class="flex items-center gap-2 flex-shrink-0">
@@ -378,48 +365,6 @@ function render() {
   }).join('');
 }
 
-// ─── Week widget ───────────────────────────────────────────────────────────────
-function weekMondayStr() {
-  const d = new Date();
-  const offset = d.getDay() === 0 ? 6 : d.getDay() - 1;
-  const mon = new Date(d);
-  mon.setDate(d.getDate() - offset);
-  return mon.getFullYear() + '-' + String(mon.getMonth()+1).padStart(2,'0') + '-' + String(mon.getDate()).padStart(2,'0');
-}
-function fmtShortDate(iso) {
-  const [,m,d] = iso.split('-');
-  return d + '/' + m;
-}
-
-function renderWeekWidget() {
-  const monday = weekMondayStr();
-  const today  = todayStr();
-
-  document.getElementById('week-dates').textContent = fmtShortDate(monday) + ' – ' + fmtShortDate(today);
-
-  const weekTxs = ALL_TXS
-    .filter(t => t.date >= monday && t.date <= today && parseFloat(t.amount) < 0 && t.category !== 'virement_interne')
-    .sort((a, b) => parseFloat(a.amount) - parseFloat(b.amount));
-
-  const total = weekTxs.reduce((s, t) => s + Math.abs(parseFloat(t.amount)), 0);
-  document.getElementById('week-total').textContent = fmt(total);
-
-  const top8 = weekTxs.slice(0, 8);
-  document.getElementById('week-txs').innerHTML = top8.length === 0
-    ? '<p class="text-xs text-gray-400 py-2">Aucune dépense cette semaine.</p>'
-    : top8.map(t => `
-      <div class="flex items-center gap-3 py-1.5 text-xs">
-        <span class="text-gray-400 w-10 flex-shrink-0">${fmtShortDate(t.date)}</span>
-        <span class="flex-1 truncate text-gray-700">${esc(t.label)}</span>
-        <span class="text-red-500 font-medium whitespace-nowrap">${Math.abs(parseFloat(t.amount)).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})} €</span>
-      </div>`).join('');
-
-  fetch(`/api/week-phrase?profile=${PROFILE}`)
-    .then(r => r.json())
-    .then(d => { document.getElementById('week-phrase').textContent = d.phrase; })
-    .catch(() => { document.getElementById('week-phrase').textContent = ''; });
-}
-
 async function triggerRefresh() {
   const btn = document.getElementById('refresh-btn');
   btn.textContent = '⏳ En cours…';
@@ -465,7 +410,6 @@ async function sendReport() {
 }
 
 render();
-renderWeekWidget();
 </script>
 </body>
 </html>
