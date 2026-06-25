@@ -73,15 +73,11 @@ def export_csv(profile: str = "commun"):
 
 
 @app.post("/report/send")
-def report_send():
-    try:
-        results = generate_and_send(current_week=True)
-        if not results:
-            return {"ok": False, "error": "Génération échouée (GMAIL_APP_PASSWORD manquant ?)"}
-        return {"ok": True, "sent_to": list(config.REPORT_RECIPIENTS.values())}
-    except Exception as e:
-        log.error(f"report_send error: {e}")
-        return {"ok": False, "error": str(e)}
+def report_send(background_tasks: BackgroundTasks):
+    if not config.GMAIL_APP_PASSWORD:
+        return {"ok": False, "error": "GMAIL_APP_PASSWORD non configuré"}
+    background_tasks.add_task(generate_and_send, current_week=True)
+    return {"ok": True, "sent_to": list(config.REPORT_RECIPIENTS.values())}
 
 
 @app.get("/report/preview", response_class=HTMLResponse)
